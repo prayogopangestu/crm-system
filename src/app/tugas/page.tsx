@@ -1,0 +1,806 @@
+"use client"
+
+import React, { useState } from "react"
+import { Card } from "@/components/ui/Card"
+import { Button } from "@/components/ui/Button"
+import { Checkbox } from "@/components/ui/Checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
+import { Input } from "@/components/ui/Input"
+import { initialTasks, Task } from "@/lib/mockData"
+import { toast } from "sonner"
+import { motion, AnimatePresence } from "framer-motion"
+
+export default function TugasPage() {
+  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const [taskTitle, setTaskTitle] = useState("")
+  const [activityRelated, setActivityRelated] = useState("")
+  const [activityNotes, setActivityNotes] = useState("")
+  const [activityType, setActivityType] = useState<"Call" | "Meeting" | "Proposal" | "Other">("Call")
+  const [taskTime, setTaskTime] = useState("12:00")
+  const [taskPriority, setTaskPriority] = useState("Sedang")
+  const [taskAssignee, setTaskAssignee] = useState("Sarah Jenkins")
+  const [taskCompletedDirectly, setTaskCompletedDirectly] = useState(false)
+
+  // Dynamic calendar state
+  const [currentMonthDate, setCurrentMonthDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
+
+  const handleResetForm = () => {
+    setTaskTitle("")
+    setActivityRelated("")
+    setActivityNotes("")
+    setActivityType("Call")
+    setTaskTime("12:00")
+    setTaskPriority("Sedang")
+    setTaskAssignee("Sarah Jenkins")
+    setTaskCompletedDirectly(false)
+  }
+
+  const indonesianMonths = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ]
+
+  const handlePrevMonth = () => {
+    setCurrentMonthDate(prev => {
+      const nextDate = new Date(prev)
+      nextDate.setMonth(prev.getMonth() - 1)
+      return nextDate
+    })
+  }
+
+  const handleNextMonth = () => {
+    setCurrentMonthDate(prev => {
+      const nextDate = new Date(prev)
+      nextDate.setMonth(prev.getMonth() + 1)
+      return nextDate
+    })
+  }
+
+  const handleToday = () => {
+    const today = new Date()
+    setCurrentMonthDate(today)
+    setSelectedDate(today)
+    toast.success("Kalender dialihkan ke hari ini!")
+  }
+
+  const handleToggleTask = (taskId: string) => {
+    setTasks(prev =>
+      prev.map(task =>
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      )
+    )
+  }
+
+  const handleToggleExpand = (taskId: string) => {
+    setExpandedTaskId(prev => prev === taskId ? null : taskId)
+  }
+
+  const renderTaskDetails = (task: Task) => {
+    // Read stored fields if they exist, otherwise fall back to type-based generation
+    const priority = (task as any).priority || 
+      (task.status === "overdue" ? "Tinggi (Terlewat)" : task.type === "Proposal" || task.type === "Meeting" ? "Tinggi" : "Sedang")
+    
+    const assignee = (task as any).assignee || 
+      (task.type === "Call" ? "Michael Kusuma" : "Sarah Jenkins")
+    
+    const notes = (task as any).notes || 
+      (task.type === "Call" 
+        ? `Hubungi klien terkait dengan detail ${task.company}. Pastikan untuk menanyakan jadwal meeting selanjutnya dan perbarui status di CRM.`
+        : task.type === "Meeting"
+          ? `Meeting evaluasi dengan pihak ${task.company}. Siapkan bahan presentasi produk dan demo sistem ter-update.`
+          : task.type === "Proposal"
+            ? `Kirimkan revisi proposal penawaran harga Q3 untuk ${task.company}. Pastikan nominal diskon sudah sesuai dengan persetujuan pimpinan.`
+            : `Tugas operasional umum terkait ${task.company}. Lakukan follow-up rutin dan dokumentasikan hasilnya.`)
+
+    return (
+      <AnimatePresence>
+        {expandedTaskId === task.id && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, rotateX: -35 }}
+            animate={{ opacity: 1, height: "auto", rotateX: 0 }}
+            exit={{ opacity: 0, height: 0, rotateX: -35 }}
+            transition={{ 
+              height: { type: "spring", stiffness: 150, damping: 22, mass: 0.9 },
+              opacity: { duration: 0.25, ease: "easeInOut" },
+              rotateX: { type: "spring", stiffness: 120, damping: 18, mass: 0.9 }
+            }}
+            className="overflow-hidden mt-3"
+            style={{ 
+              transformOrigin: "top center", 
+              transformStyle: "preserve-3d", 
+              perspective: "1200px" 
+            }}
+          >
+            <div className="bg-amber-50/40 dark:bg-slate-900/50 border border-amber-100/50 dark:border-slate-800 rounded-lg p-3 text-[11px] shadow-inner relative text-left">
+              {/* Curl page fold effect */}
+              <div className="absolute top-0 right-0 w-8 h-8 bg-gradient-to-bl from-amber-200/20 to-transparent dark:from-slate-800/40 rounded-tr-lg pointer-events-none"></div>
+              
+              <div className="grid grid-cols-2 gap-3 mb-2 pb-2 border-b border-amber-100/30 dark:border-slate-800/50">
+                <div>
+                  <span className="text-slate-400 dark:text-slate-500 font-medium block">Prioritas</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1 mt-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      priority.includes("Tinggi") || priority.includes("Urgent")
+                        ? "bg-red-500"
+                        : priority.includes("Rendah")
+                          ? "bg-slate-400 dark:bg-slate-500"
+                          : "bg-amber-500"
+                    }`}></span>
+                    {priority}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 dark:text-slate-500 font-medium block">Penanggung Jawab</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300 mt-0.5 block">{assignee}</span>
+                </div>
+              </div>
+              
+              <div>
+                <span className="text-slate-400 dark:text-slate-500 font-medium block">Catatan Detail</span>
+                <p className="mt-1 text-slate-600 dark:text-slate-400 leading-relaxed font-normal normal-case">
+                  {notes}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    )
+  }
+
+  // Helper to determine the actual date of a task (mocking relative to current date)
+  const getTaskDate = (task: Task): Date => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    if (task.status === "today") {
+      return today
+    } else if (task.status === "overdue") {
+      const yesterday = new Date(today)
+      yesterday.setDate(today.getDate() - 1)
+      return yesterday
+    } else if (task.status === "upcoming") {
+      const tomorrow = new Date(today)
+      tomorrow.setDate(today.getDate() + 1)
+      return tomorrow
+    }
+    
+    // Fallback for custom added dates
+    if ((task as any).customDate) {
+      return new Date((task as any).customDate)
+    }
+    
+    return today
+  }
+
+  const isSameDay = (d1: Date, d2: Date) => 
+    d1.getDate() === d2.getDate() && 
+    d1.getMonth() === d2.getMonth() && 
+    d1.getFullYear() === d2.getFullYear()
+
+  // Save new logged activity as a completed task in state
+  const handleSaveActivity = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!taskTitle || !activityRelated || !activityNotes) {
+      toast.error("Harap isi semua kolom wajib untuk menambahkan tugas!")
+      return
+    }
+
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    
+    const targetDate = new Date(selectedDate)
+    targetDate.setHours(0, 0, 0, 0)
+    
+    let taskStatus: "overdue" | "today" | "upcoming" = "today"
+    if (targetDate.getTime() < todayStart.getTime()) {
+      taskStatus = "overdue"
+    } else if (targetDate.getTime() > todayStart.getTime()) {
+      taskStatus = "upcoming"
+    }
+
+    // Format the time text displayed in the task card list
+    let timeText = taskTime
+    if (taskStatus === "overdue") {
+      timeText = `Terlewat, ${taskTime}`
+    } else if (taskStatus === "upcoming") {
+      timeText = `Besok, ${taskTime}`
+    }
+
+    const newLoggedTask: Task & { customDate?: string; priority?: string; assignee?: string; notes?: string } = {
+      id: `t-logged-${Date.now()}`,
+      title: taskTitle,
+      company: activityRelated,
+      time: timeText,
+      type: activityType,
+      status: taskStatus,
+      completed: taskCompletedDirectly,
+      customDate: selectedDate.toISOString(),
+      priority: taskPriority,
+      assignee: taskAssignee,
+      notes: activityNotes
+    }
+
+    setTasks(prev => [newLoggedTask, ...prev])
+
+    toast.success("Tugas berhasil ditambahkan!", {
+      description: `Tugas: "${taskTitle}" | Klien: ${activityRelated} untuk tanggal ${selectedDate.getDate()} ${indonesianMonths[selectedDate.getMonth()]}`,
+    })
+    
+    handleResetForm()
+  }
+
+  // Filter tasks dynamically
+  const today = new Date()
+  const isFilteringByDate = !isSameDay(selectedDate, today)
+
+  const getFilteredTasksForDate = (date: Date) => {
+    return tasks.filter(t => isSameDay(getTaskDate(t), date))
+  }
+
+  // Standard lists for "Today" view
+  const overdueTasks = tasks.filter(t => t.status === "overdue")
+  const todayTasks = tasks.filter(t => t.status === "today")
+  const upcomingTasks = tasks.filter(t => t.status === "upcoming")
+  
+  // Clicked date list
+  const selectedDateTasks = isFilteringByDate ? getFilteredTasksForDate(selectedDate) : []
+
+  // Generate calendar grid
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    
+    const totalDays = new Date(year, month + 1, 0).getDate()
+    const firstDayIndex = new Date(year, month, 1).getDay()
+    const startOffset = firstDayIndex === 0 ? 6 : firstDayIndex - 1
+
+    const days = []
+    
+    const prevMonthTotalDays = new Date(year, month, 0).getDate()
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const dayNum = prevMonthTotalDays - i
+      days.push({
+        dayNum,
+        isCurrentMonth: false,
+        date: new Date(year, month - 1, dayNum)
+      })
+    }
+
+    for (let i = 1; i <= totalDays; i++) {
+      days.push({
+        dayNum: i,
+        isCurrentMonth: true,
+        date: new Date(year, month, i)
+      })
+    }
+
+    const totalCells = days.length > 35 ? 42 : 35
+    const nextMonthDaysNeeded = totalCells - days.length
+    for (let i = 1; i <= nextMonthDaysNeeded; i++) {
+      days.push({
+        dayNum: i,
+        isCurrentMonth: false,
+        date: new Date(year, month + 1, i)
+      })
+    }
+
+    return days
+  }
+
+  const calendarDays = getDaysInMonth(currentMonthDate)
+
+  return (
+    <div className="p-gutter max-w-container-max-width mx-auto w-full flex flex-col gap-gutter lg:flex-row">
+      {/* Left Column: Calendar & Quick Log */}
+      <div className="flex-1 flex flex-col gap-gutter min-w-[60%] animate-fade-in-up">
+        {/* Page Title & Navigation */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+          <div>
+            <h2 className="font-headline-md text-[24px] font-semibold text-on-surface">
+              Jadwal Aktivitas
+            </h2>
+            <p className="font-body-md text-sm text-on-surface-variant mt-1">
+              Kelola tugas dan interaksi klien Anda hari ini.
+            </p>
+          </div>
+          <div className="flex gap-2 self-end items-center">
+            <span className="font-semibold text-sm mr-2 text-on-surface dark:text-slate-200">
+              {indonesianMonths[currentMonthDate.getMonth()]} {currentMonthDate.getFullYear()}
+            </span>
+            <button 
+              onClick={handlePrevMonth}
+              className="p-2 rounded-lg bg-surface border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors flex items-center justify-center cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+            </button>
+            <button 
+              onClick={handleToday}
+              className="px-4 py-2 rounded-lg bg-surface border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-label-md text-sm font-semibold cursor-pointer"
+            >
+              Hari Ini
+            </button>
+            <button 
+              onClick={handleNextMonth}
+              className="p-2 rounded-lg bg-surface border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors flex items-center justify-center cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Calendar Card (Bento style) */}
+        <Card className="p-6 flex-1 flex flex-col">
+          {/* Days Header */}
+          <div className="grid grid-cols-7 gap-4 mb-4 border-b border-outline-variant pb-4">
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Sen</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Sel</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Rab</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Kam</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Jum</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Sab</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Min</div>
+          </div>
+
+          {/* Calendar Grid */}
+          <div className="grid grid-cols-7 gap-2 flex-1 min-h-[300px]">
+            {calendarDays.map((day, idx) => {
+              const tasksForDay = getFilteredTasksForDate(day.date)
+              const isTodayCell = isSameDay(day.date, today)
+              const isSelectedCell = isSameDay(day.date, selectedDate)
+              
+              return (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    setSelectedDate(day.date)
+                    toast.info(`Melihat tugas untuk ${day.dayNum} ${indonesianMonths[day.date.getMonth()]} ${day.date.getFullYear()}`)
+                  }}
+                  className={`p-2 rounded-lg border transition-all min-h-[80px] flex flex-col cursor-pointer select-none relative ${
+                    isSelectedCell
+                      ? "border-primary bg-primary-fixed/10"
+                      : isTodayCell
+                        ? "border-primary/50 bg-surface-container-low"
+                        : day.isCurrentMonth
+                          ? "border-outline-variant/40 bg-surface hover:border-primary/30"
+                          : "border-transparent bg-slate-50/20 text-on-surface-variant opacity-40 hover:border-outline-variant"
+                  }`}
+                >
+                  {isTodayCell && (
+                    <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full"></span>
+                  )}
+                  <span className={`text-xs font-semibold mb-1 ${
+                    isTodayCell ? "text-primary font-bold" : ""
+                  }`}>
+                    {day.dayNum}
+                  </span>
+                  
+                  {/* Event Badges */}
+                  <div className="flex-1 flex flex-col justify-end overflow-hidden">
+                    {tasksForDay.slice(0, 2).map(task => (
+                      <div
+                        key={task.id}
+                        className={`mt-0.5 text-[9px] px-1.5 py-0.5 rounded truncate font-medium ${
+                          task.completed
+                            ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 line-through"
+                            : task.status === "overdue"
+                              ? "bg-red-500/10 text-red-700 dark:bg-red-950/20 dark:text-red-400"
+                              : "bg-primary-fixed text-on-primary-fixed-variant"
+                        }`}
+                        title={task.title}
+                      >
+                        {task.title}
+                      </div>
+                    ))}
+                    {tasksForDay.length > 2 && (
+                      <div className="text-[8px] text-slate-400 dark:text-slate-500 font-bold mt-0.5 text-right">
+                        +{tasksForDay.length - 2} lagi
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+
+        {/* Quick Log Form */}
+        <Card className="p-6">
+          <h3 className="font-headline-sm text-base font-semibold text-on-surface mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">add_task</span>
+            Tambah Tugas Baru (Tanggal: {selectedDate.getDate()} {indonesianMonths[selectedDate.getMonth()]})
+          </h3>
+          <form onSubmit={handleSaveActivity} className="flex flex-col gap-4">
+            {/* Row 1: Judul Tugas & Terkait Dengan */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Judul Tugas <span className="text-red-500">*</span></label>
+                <Input
+                  required
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  placeholder="Contoh: Telepon Budi Wijaya"
+                />
+              </div>
+              <div>
+                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Terkait Dengan (Klien/Perusahaan) <span className="text-red-500">*</span></label>
+                <Input
+                  required
+                  value={activityRelated}
+                  onChange={(e) => setActivityRelated(e.target.value)}
+                  placeholder="Contoh: PT Telkomsel"
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Jenis Aktivitas, Waktu, Prioritas */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Jenis Aktivitas</label>
+                <Select
+                  value={activityType}
+                  onValueChange={(val: any) => setActivityType(val)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pilih Jenis" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Call">Panggilan Telepon (Call)</SelectItem>
+                    <SelectItem value="Meeting">Pertemuan (Meeting)</SelectItem>
+                    <SelectItem value="Proposal">Kirim Proposal</SelectItem>
+                    <SelectItem value="Other">Lainnya</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Waktu</label>
+                <Input
+                  type="time"
+                  required
+                  value={taskTime}
+                  onChange={(e) => setTaskTime(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Prioritas</label>
+                <Select
+                  value={taskPriority}
+                  onValueChange={setTaskPriority}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pilih Prioritas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Tinggi">Tinggi</SelectItem>
+                    <SelectItem value="Sedang">Sedang</SelectItem>
+                    <SelectItem value="Rendah">Rendah</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Row 3: Penanggung Jawab & Status Selesai Langsung */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+              <div>
+                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Penanggung Jawab</label>
+                <Select
+                  value={taskAssignee}
+                  onValueChange={setTaskAssignee}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pilih Penanggung Jawab" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Sarah Jenkins">Sarah Jenkins</SelectItem>
+                    <SelectItem value="Michael Kusuma">Michael Kusuma</SelectItem>
+                    <SelectItem value="Anita Larasati">Anita Larasati</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-3 pt-5">
+                <Checkbox
+                  checked={taskCompletedDirectly}
+                  onCheckedChange={(checked) => setTaskCompletedDirectly(checked === true)}
+                  id="task-completed-directly"
+                  className="cursor-pointer"
+                />
+                <label htmlFor="task-completed-directly" className="text-xs font-semibold text-on-surface-variant cursor-pointer select-none">
+                  Tandai tugas ini langsung selesai (Logged Activity)
+                </label>
+              </div>
+            </div>
+
+            {/* Row 4: Catatan Detail */}
+            <div>
+              <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Catatan Detail <span className="text-red-500">*</span></label>
+              <textarea
+                required
+                value={activityNotes}
+                onChange={(e) => setActivityNotes(e.target.value)}
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-2 px-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none resize-none min-h-[80px]"
+                placeholder="Tulis instruksi detail, nomor telepon, ringkasan agenda..."
+                rows={3}
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="ghost" onClick={handleResetForm}>
+                Batal
+              </Button>
+              <Button type="submit" variant="default" className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px]">save</span>
+                Simpan Tugas
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+
+      {/* Right Column: Task Lists */}
+      <div className="w-full lg:w-[380px] flex flex-col gap-6">
+        {isFilteringByDate ? (
+          <Card className="p-4 flex flex-col relative overflow-hidden transition-all duration-300 hover:shadow-md hover:border-outline-variant dark:hover:border-slate-700 hover:-translate-y-[1px] animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4 border-b border-outline-variant/60 pb-3 relative z-10">
+              <div>
+                <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                  Tugas {selectedDate.getDate()} {indonesianMonths[selectedDate.getMonth()]}
+                </h3>
+                <p className="text-[10px] text-slate-500 font-medium">Jadwal pada tanggal terpilih</p>
+              </div>
+              <button 
+                onClick={() => setSelectedDate(today)}
+                className="px-2.5 py-1 bg-primary text-white text-[10px] font-bold rounded-full cursor-pointer hover:bg-primary/95 transition-colors"
+              >
+                Hari Ini
+              </button>
+            </div>
+
+            <div className="divide-y divide-outline-variant/30 relative z-10">
+              {selectedDateTasks.length === 0 ? (
+                <div className="py-12 text-center flex flex-col items-center justify-center">
+                  <span className="material-symbols-outlined text-slate-400/50 text-[36px] mb-2">event_busy</span>
+                  <p className="text-xs text-slate-500 font-semibold">Tidak ada tugas terdaftar</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Gunakan form kiri untuk menambahkan</p>
+                </div>
+              ) : (
+                selectedDateTasks.map(task => (
+                  <div 
+                    key={task.id} 
+                    onClick={() => handleToggleExpand(task.id)}
+                    className={`py-3 flex flex-col gap-1 group relative transition-colors cursor-pointer select-none ${
+                      task.completed ? "opacity-60" : "hover:bg-slate-50/40 dark:hover:bg-slate-800/10 px-2.5 -mx-2.5 rounded-lg"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 w-full">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox 
+                          checked={task.completed} 
+                          onChange={() => handleToggleTask(task.id)} 
+                          className="mt-1 cursor-pointer" 
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className={`font-semibold text-sm text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors ${
+                            task.completed ? "line-through text-slate-400 dark:text-slate-600" : ""
+                          }`}>
+                            {task.title}
+                          </h4>
+                          <span className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase ${
+                            task.completed 
+                              ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600" 
+                              : "bg-slate-100 text-slate-700 border border-slate-200/50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-750"
+                          }`}>
+                            {task.type}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">{task.company}</p>
+                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60">
+                          <div className="text-[10px] text-slate-400 font-semibold">
+                            <span>Waktu: {task.time}</span>
+                          </div>
+                          {task.completed ? (
+                            <span className="text-[10px] text-emerald-600 font-bold">Selesai</span>
+                          ) : (
+                            <span className="text-[10px] text-amber-600 font-bold">Belum Selesai</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {renderTaskDetails(task)}
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        ) : (
+          <>
+            {/* Overdue Tasks */}
+            {overdueTasks.length > 0 && (
+              <Card className="p-4 flex flex-col relative overflow-hidden transition-all duration-300 hover:shadow-md hover:border-outline-variant dark:hover:border-slate-700 hover:-translate-y-[1px] animate-fade-in-up">
+                <div className="flex items-center justify-between mb-4 border-b border-outline-variant/60 pb-3 relative z-10">
+                  <div>
+                    <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                      Tugas Terlewat
+                    </h3>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Perlu tindakan segera</p>
+                  </div>
+                  <span className="px-2.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full shadow-xs shadow-red-500/10">
+                    {overdueTasks.length} Urgent
+                  </span>
+                </div>
+
+                <div className="divide-y divide-outline-variant/30 relative z-10">
+                  {overdueTasks.map(task => (
+                    <div 
+                      key={task.id} 
+                      onClick={() => handleToggleExpand(task.id)}
+                      className={`py-3.5 first:pt-0 last:pb-0 flex flex-col gap-1 group relative transition-colors cursor-pointer select-none ${
+                        task.completed ? "opacity-60" : "hover:bg-slate-50/40 dark:hover:bg-slate-800/10 px-2.5 -mx-2.5 rounded-lg"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 w-full">
+                        {/* Left accent indicator (rendered next to checkbox when row is active) */}
+                        {!task.completed && (
+                          <div className="w-[3px] self-stretch bg-red-500 rounded-full my-0.5"></div>
+                        )}
+                        
+                        <div className="flex items-start gap-3 w-full">
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <Checkbox 
+                              checked={task.completed} 
+                              onChange={() => {
+                                handleToggleTask(task.id)
+                                if (!task.completed) {
+                                  toast.success("Tugas diselesaikan!", {
+                                    description: `Tugas "${task.title}" telah diselesaikan.`,
+                                  })
+                                }
+                              }} 
+                              className="mt-1 accent-red-600 cursor-pointer" 
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className={`font-semibold text-sm text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors ${
+                                task.completed ? "line-through text-slate-400 dark:text-slate-600" : ""
+                              }`}>
+                                {task.title}
+                              </h4>
+                              <span className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase ${
+                                task.completed 
+                                  ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600" 
+                                  : "bg-slate-100 text-slate-700 border border-slate-200/50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-750"
+                              }`}>
+                                {task.type}
+                              </span>
+                            </div>
+                            
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">
+                              {task.company}
+                            </p>
+                            
+                            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60">
+                              <div className={`text-[10px] font-semibold ${
+                                task.completed
+                                  ? "text-slate-400 dark:text-slate-600"
+                                  : "text-slate-600 dark:text-slate-350"
+                              }`}>
+                                <span>Jatuh Tempo: {task.time}</span>
+                              </div>
+                              
+                              {!task.completed && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleToggleTask(task.id)
+                                    toast.success("Tugas diselesaikan!", {
+                                      description: `Tugas "${task.title}" telah diselesaikan.`,
+                                    })
+                                  }}
+                                  className="text-[10px] text-slate-400 hover:text-primary dark:text-slate-500 dark:hover:text-primary font-bold flex items-center transition-colors cursor-pointer"
+                                >
+                                  Tandai Selesai
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {renderTaskDetails(task)}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Today Tasks */}
+            <Card className="p-4 flex-1 flex flex-col">
+              <h3 className="font-label-md text-xs font-bold text-primary flex items-center gap-2 mb-3 uppercase tracking-wider">
+                <span className="material-symbols-outlined text-[16px]">today</span>
+                Hari Ini
+              </h3>
+              <div className="space-y-2 flex-1 overflow-y-auto pr-1">
+                {todayTasks.map(task => (
+                  <div
+                    key={task.id}
+                    onClick={() => handleToggleExpand(task.id)}
+                    className={`rounded-lg p-3 border transition-colors flex flex-col gap-1 cursor-pointer select-none group ${
+                      task.completed
+                        ? "border-outline-variant/35 bg-surface/50 opacity-60"
+                        : "border-transparent bg-surface-container-low hover:border-primary"
+                    }`}
+                  >
+                    <div className="flex gap-3 w-full">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox checked={task.completed} onChange={() => handleToggleTask(task.id)} className="mt-1" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start gap-2">
+                          <h4 className={`font-label-md text-sm text-on-surface font-semibold group-hover:text-primary transition-colors truncate ${
+                            task.completed ? "line-through opacity-50" : ""
+                          }`}>
+                            {task.title}
+                          </h4>
+                          <div className="flex items-center gap-1 text-on-surface-variant text-[10px] shrink-0 mt-0.5">
+                            <span className="material-symbols-outlined text-[12px]">schedule</span>
+                            <span>{task.time}</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center mt-2">
+                          <p className="text-xs text-on-surface-variant truncate mr-2">{task.company}</p>
+                          <span className="px-2.5 py-0.5 bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-semibold rounded-full uppercase shrink-0">
+                            {task.type}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {renderTaskDetails(task)}
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Upcoming Tasks */}
+            <div className="bg-surface-container rounded-xl p-4 border border-outline-variant/50">
+              <h3 className="font-label-md text-xs font-bold text-on-surface-variant flex items-center gap-2 mb-3 uppercase tracking-wider">
+                <span className="material-symbols-outlined text-[16px]">upcoming</span>
+                Akan Datang
+              </h3>
+              <div className="space-y-2">
+                {upcomingTasks.map(task => (
+                  <div 
+                    key={task.id} 
+                    onClick={() => handleToggleExpand(task.id)}
+                    className="bg-surface rounded-lg p-3 border border-transparent flex flex-col gap-1 cursor-pointer select-none hover:border-outline-variant/50 transition-all"
+                  >
+                    <div className="flex gap-3 w-full">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox checked={task.completed} onChange={() => handleToggleTask(task.id)} className="mt-1" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={`font-label-md text-sm text-on-surface font-semibold ${task.completed ? "line-through opacity-50" : ""}`}>
+                          {task.title}
+                        </h4>
+                        <p className="text-xs text-on-surface-variant mt-0.5">{task.company}</p>
+                        <div className="flex items-center gap-1 mt-2 text-on-surface-variant text-[10px]">
+                          <span className="material-symbols-outlined text-[12px]">calendar_today</span>
+                          <span>{task.time}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {renderTaskDetails(task)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
