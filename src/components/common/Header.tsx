@@ -1,13 +1,21 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar"
 import { useSidebar } from "@/context/SidebarContext"
+import { useTheme } from "next-themes"
+import { Sun, Moon } from "lucide-react"
 import { toast } from "sonner"
 
 export function Header() {
   const { toggleCollapse, toggleMobile, isCollapsed } = useSidebar()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleToggle = () => {
     if (window.innerWidth < 768) {
@@ -65,6 +73,25 @@ export function Header() {
         <button className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors relative cursor-pointer">
           <span className="material-symbols-outlined">notifications</span>
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full border border-surface-container-lowest"></span>
+        </button>
+
+        {/* Theme Toggle Button */}
+        <button
+          onClick={() => {
+            document.documentElement.classList.add("theme-transition")
+            setTheme(theme === "dark" ? "light" : "dark")
+            setTimeout(() => {
+              document.documentElement.classList.remove("theme-transition")
+            }, 300)
+          }}
+          className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors relative cursor-pointer flex items-center justify-center"
+          title={mounted && theme === "dark" ? "Ubah ke mode terang" : "Ubah ke mode gelap"}
+        >
+          {mounted && theme === "dark" ? (
+            <Sun className="h-5 w-5 text-amber-500 animate-in duration-300" />
+          ) : (
+            <Moon className="h-5 w-5 text-slate-700 dark:text-slate-350 animate-in duration-300" />
+          )}
         </button>
 
         {/* Vertical Divider */}

@@ -21,6 +21,7 @@ export default function LoginPage() {
     // Simulate API loading
     setTimeout(() => {
       setIsLoading(false)
+      localStorage.setItem("crm_logged_in", "true")
       router.push("/")
     }, 1200)
   }
@@ -29,6 +30,7 @@ export default function LoginPage() {
     setIsLoading(true)
     setTimeout(() => {
       setIsLoading(false)
+      localStorage.setItem("crm_logged_in", "true")
       router.push("/")
     }, 1000)
   }

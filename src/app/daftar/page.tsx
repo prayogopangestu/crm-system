@@ -40,6 +40,7 @@ export default function DaftarPage() {
     // Simulate API loading for registration
     setTimeout(() => {
       setIsLoading(false)
+      localStorage.setItem("crm_logged_in", "true")
       router.push("/")
     }, 1500)
   }
@@ -48,6 +49,7 @@ export default function DaftarPage() {
     setIsLoading(true)
     setTimeout(() => {
       setIsLoading(false)
+      localStorage.setItem("crm_logged_in", "true")
       router.push("/")
     }, 1000)
   }
