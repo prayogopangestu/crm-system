@@ -1,26 +1,50 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar"
-import { initialContacts, Contact } from "@/lib/mockData"
+import { Contact } from "@/lib/mockData"
+import { useContactStore } from "@/hooks/useContactStore"
+
+const contactSchema = z.object({
+  name: z.string().min(2, "Nama lengkap minimal harus 2 karakter"),
+  email: z.string().email("Format email tidak valid").min(1, "Email wajib diisi"),
+  company: z.string().min(2, "Nama perusahaan minimal harus 2 karakter"),
+  role: z.string().optional(),
+  status: z.enum(["Negosiasi", "Menang", "Prospek Awal", "Proposal", "Kalah", "Kualifikasi"])
+})
+
+type ContactInput = z.infer<typeof contactSchema>
 
 export default function KontakPage() {
-  const [contacts, setContacts] = useState<Contact[]>(initialContacts)
-  const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("Semua")
-  const [showAddModal, setShowAddModal] = useState(false)
+  const {
+    contacts,
+    search,
+    statusFilter,
+    showAddModal,
+    setSearch,
+    setStatusFilter,
+    setShowAddModal,
+    addContact
+  } = useContactStore()
 
-  // Form states
-  const [newName, setNewName] = useState("")
-  const [newEmail, setNewEmail] = useState("")
-  const [newCompany, setNewCompany] = useState("")
-  const [newRole, setNewRole] = useState("")
-  const [newStatus, setNewStatus] = useState<Contact['status']>("Prospek Awal")
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<ContactInput>({
+    resolver: zodResolver(contactSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      company: "",
+      role: "",
+      status: "Prospek Awal"
+    }
+  })
 
   // Filter contacts
   const filteredContacts = contacts.filter((c) => {
@@ -44,11 +68,8 @@ export default function KontakPage() {
     "Kualifikasi": "bg-surface-container-high text-on-surface"
   }
 
-  const handleAddContact = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newName || !newEmail || !newCompany) return
-
-    const initials = newName
+  const onSubmit = (data: ContactInput) => {
+    const initials = data.name
       .split(" ")
       .map((n) => n[0])
       .join("")
@@ -57,24 +78,17 @@ export default function KontakPage() {
 
     const newContact: Contact = {
       id: Date.now().toString(),
-      name: newName,
-      email: newEmail,
-      company: newCompany,
-      role: newRole || "Staff",
-      status: newStatus,
+      name: data.name,
+      email: data.email,
+      company: data.company,
+      role: data.role || "Staff",
+      status: data.status,
       lastContacted: "Baru saja",
       initials
     }
 
-    setContacts([newContact, ...contacts])
-    setShowAddModal(false)
-
-    // Reset fields
-    setNewName("")
-    setNewEmail("")
-    setNewCompany("")
-    setNewRole("")
-    setNewStatus("Prospek Awal")
+    addContact(newContact)
+    reset()
   }
 
   return (
@@ -214,7 +228,10 @@ export default function KontakPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-md bg-surface-container-lowest p-6 shadow-xl relative animate-in fade-in zoom-in duration-200">
             <button
-              onClick={() => setShowAddModal(false)}
+              onClick={() => {
+                setShowAddModal(false)
+                reset()
+              }}
               className="absolute right-4 top-4 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined">close</span>
@@ -222,29 +239,33 @@ export default function KontakPage() {
             <h3 className="font-headline-sm text-lg font-bold text-on-surface mb-4">
               Tambah Kontak Baru
             </h3>
-            <form onSubmit={handleAddContact} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Nama Lengkap
                 </label>
                 <Input
-                  required
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  {...register("name")}
                   placeholder="Nama Lengkap Klien"
+                  className={errors.name ? "border-red-500" : ""}
                 />
+                {errors.name && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.name.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Email
                 </label>
                 <Input
-                  required
                   type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
+                  {...register("email")}
                   placeholder="name@company.com"
+                  className={errors.email ? "border-red-500" : ""}
                 />
+                {errors.email && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.email.message}</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -252,19 +273,20 @@ export default function KontakPage() {
                     Perusahaan
                   </label>
                   <Input
-                    required
-                    value={newCompany}
-                    onChange={(e) => setNewCompany(e.target.value)}
+                    {...register("company")}
                     placeholder="Nama Perusahaan"
+                    className={errors.company ? "border-red-500" : ""}
                   />
+                  {errors.company && (
+                    <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.company.message}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                     Jabatan
                   </label>
                   <Input
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
+                    {...register("role")}
                     placeholder="VP Sales, Manager..."
                   />
                 </div>
@@ -273,28 +295,40 @@ export default function KontakPage() {
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Status Kesepakatan (Deal)
                 </label>
-                <Select
-                  value={newStatus}
-                  onValueChange={(val) => setNewStatus(val as Contact['status'])}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Prospek Awal">Prospek Awal</SelectItem>
-                    <SelectItem value="Kualifikasi">Kualifikasi</SelectItem>
-                    <SelectItem value="Proposal">Proposal</SelectItem>
-                    <SelectItem value="Negosiasi">Negosiasi</SelectItem>
-                    <SelectItem value="Menang">Menang</SelectItem>
-                    <SelectItem value="Kalah">Kalah</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="status"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Pilih Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Prospek Awal">Prospek Awal</SelectItem>
+                        <SelectItem value="Kualifikasi">Kualifikasi</SelectItem>
+                        <SelectItem value="Proposal">Proposal</SelectItem>
+                        <SelectItem value="Negosiasi">Negosiasi</SelectItem>
+                        <SelectItem value="Menang">Menang</SelectItem>
+                        <SelectItem value="Kalah">Kalah</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.status && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.status.message}</p>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false)
+                    reset()
+                  }}
                 >
                   Batal
                 </Button>

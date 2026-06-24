@@ -1,57 +1,56 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { useAuthStore } from "@/hooks/useAuthStore"
+
+const registerSchema = z.object({
+  fullName: z.string().min(2, "Nama lengkap minimal harus 2 karakter"),
+  companyName: z.string().min(2, "Nama perusahaan minimal harus 2 karakter"),
+  email: z.string().email("Format email tidak valid").min(1, "Email wajib diisi"),
+  password: z.string().min(6, "Kata sandi minimal harus 6 karakter"),
+  confirmPassword: z.string().min(6, "Konfirmasi kata sandi minimal harus 6 karakter")
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Konfirmasi kata sandi tidak cocok",
+  path: ["confirmPassword"]
+})
+
+type RegisterInput = z.infer<typeof registerSchema>
 
 export default function DaftarPage() {
   const router = useRouter()
-  const [fullName, setFullName] = useState("")
-  const [companyName, setCompanyName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
+  const { isLoading, error, setError, register: registerUser } = useAuthStore()
 
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-
-    if (!fullName || !companyName || !email || !password || !confirmPassword) {
-      setError("Semua kolom harus diisi.")
-      return
+  const { register, handleSubmit, formState: { errors } } = useForm<RegisterInput>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      fullName: "",
+      companyName: "",
+      email: "",
+      password: "",
+      confirmPassword: ""
     }
+  })
 
-    if (password !== confirmPassword) {
-      setError("Konfirmasi kata sandi tidak cocok.")
-      return
-    }
-
-    if (password.length < 6) {
-      setError("Kata sandi minimal harus 6 karakter.")
-      return
-    }
-
-    setIsLoading(true)
-    // Simulate API loading for registration
-    setTimeout(() => {
-      setIsLoading(false)
-      localStorage.setItem("crm_logged_in", "true")
+  const onSubmit = (data: RegisterInput) => {
+    setError(null)
+    registerUser(() => {
       router.push("/")
-    }, 1500)
+    })
   }
 
   const handleSocialRegister = (provider: string) => {
-    setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
-      localStorage.setItem("crm_logged_in", "true")
+    setError(null)
+    registerUser(() => {
       router.push("/")
-    }, 1000)
+    })
   }
 
   return (
@@ -73,18 +72,20 @@ export default function DaftarPage() {
       )}
 
       {/* Register Form */}
-      <form onSubmit={handleRegister} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-on-surface-variant mb-1">
             Nama Lengkap
           </label>
           <Input
-            required
             type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
+            {...register("fullName")}
             placeholder="Sarah Jenkins"
+            className={errors.fullName ? "border-red-500" : ""}
           />
+          {errors.fullName && (
+            <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.fullName.message}</p>
+          )}
         </div>
 
         <div>
@@ -92,12 +93,14 @@ export default function DaftarPage() {
             Nama Perusahaan
           </label>
           <Input
-            required
             type="text"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
+            {...register("companyName")}
             placeholder="Acme Corporation"
+            className={errors.companyName ? "border-red-500" : ""}
           />
+          {errors.companyName && (
+            <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.companyName.message}</p>
+          )}
         </div>
 
         <div>
@@ -105,12 +108,14 @@ export default function DaftarPage() {
             Alamat Email
           </label>
           <Input
-            required
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            {...register("email")}
             placeholder="sarah.j@company.com"
+            className={errors.email ? "border-red-500" : ""}
           />
+          {errors.email && (
+            <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.email.message}</p>
+          )}
         </div>
 
         <div>
@@ -118,12 +123,14 @@ export default function DaftarPage() {
             Kata Sandi
           </label>
           <Input
-            required
             type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            {...register("password")}
             placeholder="••••••••"
+            className={errors.password ? "border-red-500" : ""}
           />
+          {errors.password && (
+            <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.password.message}</p>
+          )}
         </div>
 
         <div>
@@ -131,12 +138,14 @@ export default function DaftarPage() {
             Konfirmasi Kata Sandi
           </label>
           <Input
-            required
             type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            {...register("confirmPassword")}
             placeholder="••••••••"
+            className={errors.confirmPassword ? "border-red-500" : ""}
           />
+          {errors.confirmPassword && (
+            <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.confirmPassword.message}</p>
+          )}
         </div>
 
         <Button

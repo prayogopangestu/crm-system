@@ -1,38 +1,45 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { useAuthStore } from "@/hooks/useAuthStore"
+
+const loginSchema = z.object({
+  email: z.string().email("Format email tidak valid").min(1, "Email wajib diisi"),
+  password: z.string().min(6, "Kata sandi minimal harus 6 karakter")
+})
+
+type LoginInput = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const { isLoading, login } = useAuthStore()
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email || !password) return
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: ""
+    }
+  })
 
-    setIsLoading(true)
-    // Simulate API loading
-    setTimeout(() => {
-      setIsLoading(false)
-      localStorage.setItem("crm_logged_in", "true")
+  const onSubmit = (data: LoginInput) => {
+    login(() => {
       router.push("/")
-    }, 1200)
+    })
   }
 
   const handleSocialLogin = (provider: string) => {
-    setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
-      localStorage.setItem("crm_logged_in", "true")
+    login(() => {
       router.push("/")
-    }, 1000)
+    })
   }
 
   return (
@@ -47,18 +54,20 @@ export default function LoginPage() {
       </div>
 
       {/* Login Form */}
-      <form onSubmit={handleLogin} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-on-surface-variant mb-1">
             Alamat Email
           </label>
           <Input
-            required
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            {...register("email")}
             placeholder="sarah.j@company.com"
+            className={errors.email ? "border-red-500" : ""}
           />
+          {errors.email && (
+            <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.email.message}</p>
+          )}
         </div>
         <div>
           <div className="flex justify-between items-center mb-1">
@@ -68,12 +77,14 @@ export default function LoginPage() {
             <a href="#" className="text-[10px] text-primary hover:underline font-semibold">Lupa sandi?</a>
           </div>
           <Input
-            required
             type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            {...register("password")}
             placeholder="••••••••"
+            className={errors.password ? "border-red-500" : ""}
           />
+          {errors.password && (
+            <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.password.message}</p>
+          )}
         </div>
 
         <Button

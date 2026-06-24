@@ -1,41 +1,32 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Checkbox } from "@/components/ui/Checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
-import { Input } from "@/components/ui/Input"
-import { initialTasks, Task } from "@/lib/mockData"
+import { Task } from "@/lib/mockData"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
+import { cn } from "@/lib/utils"
+import { useTaskStore, TaskFormData } from "@/hooks/useTaskStore"
+import { Step1Basic } from "@/components/tugas/Step1Basic"
+import { Step2Config } from "@/components/tugas/Step2Config"
+import { Step3Summary } from "@/components/tugas/Step3Summary"
 
 export default function TugasPage() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
-  const [taskTitle, setTaskTitle] = useState("")
-  const [activityRelated, setActivityRelated] = useState("")
-  const [activityNotes, setActivityNotes] = useState("")
-  const [activityType, setActivityType] = useState<"Call" | "Meeting" | "Proposal" | "Other">("Call")
-  const [taskTime, setTaskTime] = useState("12:00")
-  const [taskPriority, setTaskPriority] = useState("Sedang")
-  const [taskAssignee, setTaskAssignee] = useState("Sarah Jenkins")
-  const [taskCompletedDirectly, setTaskCompletedDirectly] = useState(false)
-
-  // Dynamic calendar state
-  const [currentMonthDate, setCurrentMonthDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState(new Date())
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
-
-  const handleResetForm = () => {
-    setTaskTitle("")
-    setActivityRelated("")
-    setActivityNotes("")
-    setActivityType("Call")
-    setTaskTime("12:00")
-    setTaskPriority("Sedang")
-    setTaskAssignee("Sarah Jenkins")
-    setTaskCompletedDirectly(false)
-  }
+  const {
+    tasks,
+    currentMonthDate,
+    selectedDate,
+    expandedTaskId,
+    step,
+    toggleTask,
+    toggleExpand,
+    setCurrentMonthDate,
+    setSelectedDate,
+    addTask,
+    resetForm
+  } = useTaskStore()
 
   const indonesianMonths = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -63,18 +54,6 @@ export default function TugasPage() {
     setCurrentMonthDate(today)
     setSelectedDate(today)
     toast.success("Kalender dialihkan ke hari ini!")
-  }
-
-  const handleToggleTask = (taskId: string) => {
-    setTasks(prev =>
-      prev.map(task =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
-    )
-  }
-
-  const handleToggleExpand = (taskId: string) => {
-    setExpandedTaskId(prev => prev === taskId ? null : taskId)
   }
 
   const renderTaskDetails = (task: Task) => {
@@ -180,14 +159,8 @@ export default function TugasPage() {
     d1.getMonth() === d2.getMonth() && 
     d1.getFullYear() === d2.getFullYear()
 
-  // Save new logged activity as a completed task in state
-  const handleSaveActivity = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!taskTitle || !activityRelated || !activityNotes) {
-      toast.error("Harap isi semua kolom wajib untuk menambahkan tugas!")
-      return
-    }
-
+  // Save new logged activity as a completed task in state from Multi-step form
+  const handleSaveMultiStepTask = (data: TaskFormData) => {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
     
@@ -202,34 +175,34 @@ export default function TugasPage() {
     }
 
     // Format the time text displayed in the task card list
-    let timeText = taskTime
+    let timeText = data.time
     if (taskStatus === "overdue") {
-      timeText = `Terlewat, ${taskTime}`
+      timeText = `Terlewat, ${data.time}`
     } else if (taskStatus === "upcoming") {
-      timeText = `Besok, ${taskTime}`
+      timeText = `Besok, ${data.time}`
     }
 
     const newLoggedTask: Task & { customDate?: string; priority?: string; assignee?: string; notes?: string } = {
       id: `t-logged-${Date.now()}`,
-      title: taskTitle,
-      company: activityRelated,
+      title: data.title,
+      company: data.relatedTo,
       time: timeText,
-      type: activityType,
+      type: data.type,
       status: taskStatus,
-      completed: taskCompletedDirectly,
+      completed: data.completedDirectly,
       customDate: selectedDate.toISOString(),
-      priority: taskPriority,
-      assignee: taskAssignee,
-      notes: activityNotes
+      priority: data.priority,
+      assignee: data.assignee,
+      notes: data.notes
     }
 
-    setTasks(prev => [newLoggedTask, ...prev])
+    addTask(newLoggedTask)
 
     toast.success("Tugas berhasil ditambahkan!", {
-      description: `Tugas: "${taskTitle}" | Klien: ${activityRelated} untuk tanggal ${selectedDate.getDate()} ${indonesianMonths[selectedDate.getMonth()]}`,
+      description: `Tugas: "${data.title}" | Klien: ${data.relatedTo} untuk tanggal ${selectedDate.getDate()} ${indonesianMonths[selectedDate.getMonth()]}`,
     })
     
-    handleResetForm()
+    resetForm()
   }
 
   // Filter tasks dynamically
@@ -406,137 +379,39 @@ export default function TugasPage() {
           </div>
         </Card>
 
-        {/* Quick Log Form */}
+        {/* Quick Log Form (Multi-step Form) */}
         <Card className="p-6">
-          <h3 className="font-headline-sm text-base font-semibold text-on-surface mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary">add_task</span>
-            Tambah Tugas Baru (Tanggal: {selectedDate.getDate()} {indonesianMonths[selectedDate.getMonth()]})
-          </h3>
-          <form onSubmit={handleSaveActivity} className="flex flex-col gap-4">
-            {/* Row 1: Judul Tugas & Terkait Dengan */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Judul Tugas <span className="text-red-500">*</span></label>
-                <Input
-                  required
-                  value={taskTitle}
-                  onChange={(e) => setTaskTitle(e.target.value)}
-                  placeholder="Contoh: Telepon Budi Wijaya"
-                />
-              </div>
-              <div>
-                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Terkait Dengan (Klien/Perusahaan) <span className="text-red-500">*</span></label>
-                <Input
-                  required
-                  value={activityRelated}
-                  onChange={(e) => setActivityRelated(e.target.value)}
-                  placeholder="Contoh: PT Telkomsel"
-                />
-              </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-outline-variant/30">
+            <h3 className="font-headline-sm text-base font-semibold text-on-surface flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary">add_task</span>
+              Tambah Tugas Baru (Tanggal: {selectedDate.getDate()} {indonesianMonths[selectedDate.getMonth()]})
+            </h3>
+            
+            {/* Step Indicators */}
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-on-surface-variant">
+              <span className={cn("px-2 py-0.5 rounded-full transition-all duration-200", step >= 1 ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant")}>
+                1. Utama
+              </span>
+              <span className="text-outline-variant">&rarr;</span>
+              <span className={cn("px-2 py-0.5 rounded-full transition-all duration-200", step >= 2 ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant")}>
+                2. Detail
+              </span>
+              <span className="text-outline-variant">&rarr;</span>
+              <span className={cn("px-2 py-0.5 rounded-full transition-all duration-200", step >= 3 ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant")}>
+                3. Ringkasan
+              </span>
             </div>
+          </div>
 
-            {/* Row 2: Jenis Aktivitas, Waktu, Prioritas */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Jenis Aktivitas</label>
-                <Select
-                  value={activityType}
-                  onValueChange={(val: any) => setActivityType(val)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih Jenis" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Call">Panggilan Telepon (Call)</SelectItem>
-                    <SelectItem value="Meeting">Pertemuan (Meeting)</SelectItem>
-                    <SelectItem value="Proposal">Kirim Proposal</SelectItem>
-                    <SelectItem value="Other">Lainnya</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Waktu</label>
-                <Input
-                  type="time"
-                  required
-                  value={taskTime}
-                  onChange={(e) => setTaskTime(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Prioritas</label>
-                <Select
-                  value={taskPriority}
-                  onValueChange={setTaskPriority}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih Prioritas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Tinggi">Tinggi</SelectItem>
-                    <SelectItem value="Sedang">Sedang</SelectItem>
-                    <SelectItem value="Rendah">Rendah</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Row 3: Penanggung Jawab & Status Selesai Langsung */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-              <div>
-                <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Penanggung Jawab</label>
-                <Select
-                  value={taskAssignee}
-                  onValueChange={setTaskAssignee}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih Penanggung Jawab" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Sarah Jenkins">Sarah Jenkins</SelectItem>
-                    <SelectItem value="Michael Kusuma">Michael Kusuma</SelectItem>
-                    <SelectItem value="Anita Larasati">Anita Larasati</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-3 pt-5">
-                <Checkbox
-                  checked={taskCompletedDirectly}
-                  onCheckedChange={(checked) => setTaskCompletedDirectly(checked === true)}
-                  id="task-completed-directly"
-                  className="cursor-pointer"
-                />
-                <label htmlFor="task-completed-directly" className="text-xs font-semibold text-on-surface-variant cursor-pointer select-none">
-                  Tandai tugas ini langsung selesai (Logged Activity)
-                </label>
-              </div>
-            </div>
-
-            {/* Row 4: Catatan Detail */}
-            <div>
-              <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">Catatan Detail <span className="text-red-500">*</span></label>
-              <textarea
-                required
-                value={activityNotes}
-                onChange={(e) => setActivityNotes(e.target.value)}
-                className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-2 px-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none resize-none min-h-[80px]"
-                placeholder="Tulis instruksi detail, nomor telepon, ringkasan agenda..."
-                rows={3}
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="ghost" onClick={handleResetForm}>
-                Batal
-              </Button>
-              <Button type="submit" variant="default" className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[18px]">save</span>
-                Simpan Tugas
-              </Button>
-            </div>
-          </form>
+          {/* Steps Orchestrator */}
+          {step === 1 && <Step1Basic />}
+          {step === 2 && <Step2Config />}
+          {step === 3 && (
+            <Step3Summary
+              onSave={handleSaveMultiStepTask}
+              onCancel={() => resetForm()}
+            />
+          )}
         </Card>
       </div>
 
@@ -570,7 +445,7 @@ export default function TugasPage() {
                 selectedDateTasks.map(task => (
                   <div 
                     key={task.id} 
-                    onClick={() => handleToggleExpand(task.id)}
+                    onClick={() => toggleExpand(task.id)}
                     className={`py-3 flex flex-col gap-1 group relative transition-colors cursor-pointer select-none ${
                       task.completed ? "opacity-60" : "hover:bg-slate-50/40 dark:hover:bg-slate-800/10 px-2.5 -mx-2.5 rounded-lg"
                     }`}
@@ -579,7 +454,7 @@ export default function TugasPage() {
                       <div onClick={(e) => e.stopPropagation()}>
                         <Checkbox 
                           checked={task.completed} 
-                          onChange={() => handleToggleTask(task.id)} 
+                          onChange={() => toggleTask(task.id)} 
                           className="mt-1 cursor-pointer" 
                         />
                       </div>
@@ -638,7 +513,7 @@ export default function TugasPage() {
                   {overdueTasks.map(task => (
                     <div 
                       key={task.id} 
-                      onClick={() => handleToggleExpand(task.id)}
+                      onClick={() => toggleExpand(task.id)}
                       className={`py-3.5 first:pt-0 last:pb-0 flex flex-col gap-1 group relative transition-colors cursor-pointer select-none ${
                         task.completed ? "opacity-60" : "hover:bg-slate-50/40 dark:hover:bg-slate-800/10 px-2.5 -mx-2.5 rounded-lg"
                       }`}
@@ -654,7 +529,7 @@ export default function TugasPage() {
                             <Checkbox 
                               checked={task.completed} 
                               onChange={() => {
-                                handleToggleTask(task.id)
+                                toggleTask(task.id)
                                 if (!task.completed) {
                                   toast.success("Tugas diselesaikan!", {
                                     description: `Tugas "${task.title}" telah diselesaikan.`,
@@ -697,7 +572,7 @@ export default function TugasPage() {
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    handleToggleTask(task.id)
+                                    toggleTask(task.id)
                                     toast.success("Tugas diselesaikan!", {
                                       description: `Tugas "${task.title}" telah diselesaikan.`,
                                     })
@@ -728,7 +603,7 @@ export default function TugasPage() {
                 {todayTasks.map(task => (
                   <div
                     key={task.id}
-                    onClick={() => handleToggleExpand(task.id)}
+                    onClick={() => toggleExpand(task.id)}
                     className={`rounded-lg p-3 border transition-colors flex flex-col gap-1 cursor-pointer select-none group ${
                       task.completed
                         ? "border-outline-variant/35 bg-surface/50 opacity-60"
@@ -737,7 +612,7 @@ export default function TugasPage() {
                   >
                     <div className="flex gap-3 w-full">
                       <div onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={task.completed} onChange={() => handleToggleTask(task.id)} className="mt-1" />
+                        <Checkbox checked={task.completed} onChange={() => toggleTask(task.id)} className="mt-1" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start gap-2">
@@ -775,12 +650,12 @@ export default function TugasPage() {
                 {upcomingTasks.map(task => (
                   <div 
                     key={task.id} 
-                    onClick={() => handleToggleExpand(task.id)}
+                    onClick={() => toggleExpand(task.id)}
                     className="bg-surface rounded-lg p-3 border border-transparent flex flex-col gap-1 cursor-pointer select-none hover:border-outline-variant/50 transition-all"
                   >
                     <div className="flex gap-3 w-full">
                       <div onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={task.completed} onChange={() => handleToggleTask(task.id)} className="mt-1" />
+                        <Checkbox checked={task.completed} onChange={() => toggleTask(task.id)} className="mt-1" />
                       </div>
                       <div className="flex-1">
                         <h4 className={`font-label-md text-sm text-on-surface font-semibold ${task.completed ? "line-through opacity-50" : ""}`}>

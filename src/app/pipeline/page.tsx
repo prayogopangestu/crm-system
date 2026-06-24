@@ -1,12 +1,16 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar"
 import { Input } from "@/components/ui/Input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
-import { initialDeals, Deal } from "@/lib/mockData"
+import { Deal } from "@/lib/mockData"
+import { usePipelineStore } from "@/hooks/usePipelineStore"
 
 interface KanbanStage {
   id: Deal['stage']
@@ -22,19 +26,37 @@ const stages: KanbanStage[] = [
   { id: "won", title: "Deal Won", color: "border-surface-tint" }
 ]
 
+const dealSchema = z.object({
+  title: z.string().min(2, "Nama perusahaan/klien wajib diisi"),
+  company: z.string().min(2, "Deskripsi proyek/deal wajib diisi"),
+  value: z.string().min(1, "Nilai deal wajib diisi").refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, "Nilai deal harus berupa angka positif"),
+  priority: z.enum(["High", "Medium", "Low"]),
+  stage: z.enum(["lead", "contacted", "meeting", "negotiation", "won"])
+})
+
+type DealInput = z.infer<typeof dealSchema>
+
 export default function PipelinePage() {
-  const [deals, setDeals] = useState<Deal[]>(initialDeals)
-  const [showAddDealModal, setShowAddDealModal] = useState(false)
+  const {
+    deals,
+    showAddDealModal,
+    draggingId,
+    setShowAddDealModal,
+    setDraggingId,
+    addDeal,
+    updateDealStage
+  } = usePipelineStore()
 
-  // Add Deal Form States
-  const [newTitle, setNewTitle] = useState("")
-  const [newDesc, setNewDesc] = useState("")
-  const [newValue, setNewValue] = useState("")
-  const [newPriority, setNewPriority] = useState<Deal['priority']>("Medium")
-  const [newStage, setNewStage] = useState<Deal['stage']>("lead")
-
-  // Drag and Drop State
-  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<DealInput>({
+    resolver: zodResolver(dealSchema),
+    defaultValues: {
+      title: "",
+      company: "",
+      value: "",
+      priority: "Medium",
+      stage: "lead"
+    }
+  })
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggingId(id)
@@ -50,40 +72,26 @@ export default function PipelinePage() {
     const dealId = e.dataTransfer.getData("text/plain") || draggingId
     if (!dealId) return
 
-    setDeals(prev =>
-      prev.map(deal =>
-        deal.id === dealId ? { ...deal, stage: targetStage } : deal
-      )
-    )
+    updateDealStage(dealId, targetStage)
     setDraggingId(null)
   }
 
-  const handleAddDeal = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newTitle || !newDesc || !newValue) return
-
+  const onSubmit = (data: DealInput) => {
     const newDeal: Deal = {
       id: "deal_" + Date.now().toString(),
-      title: newTitle,
-      company: newDesc,
-      value: parseFloat(newValue.replace(/\D/g, "")) || 0,
-      priority: newPriority,
-      stage: newStage,
+      title: data.title,
+      company: data.company,
+      value: parseFloat(data.value) || 0,
+      priority: data.priority,
+      stage: data.stage,
       assignee: {
         name: "Sarah",
         avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100"
       }
     }
 
-    setDeals([...deals, newDeal])
-    setShowAddDealModal(false)
-
-    // Reset forms
-    setNewTitle("")
-    setNewDesc("")
-    setNewValue("")
-    setNewPriority("Medium")
-    setNewStage("lead")
+    addDeal(newDeal)
+    reset()
   }
 
   // Priority color badges
@@ -203,7 +211,10 @@ export default function PipelinePage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-md bg-surface-container-lowest p-6 shadow-xl relative animate-in fade-in zoom-in duration-200">
             <button
-              onClick={() => setShowAddDealModal(false)}
+              onClick={() => {
+                setShowAddDealModal(false)
+                reset()
+              }}
               className="absolute right-4 top-4 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined">close</span>
@@ -211,28 +222,32 @@ export default function PipelinePage() {
             <h3 className="font-headline-sm text-lg font-bold text-on-surface mb-4">
               Tambah Deal Baru
             </h3>
-            <form onSubmit={handleAddDeal} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Nama Perusahaan / Klien
                 </label>
                 <Input
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
+                  {...register("title")}
                   placeholder="Contoh: PT Telkomsel"
+                  className={errors.title ? "border-red-500" : ""}
                 />
+                {errors.title && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.title.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Deskripsi Proyek/Deal
                 </label>
                 <Input
-                  required
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
+                  {...register("company")}
                   placeholder="Contoh: Pengadaan Cloud Server"
+                  className={errors.company ? "border-red-500" : ""}
                 />
+                {errors.company && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.company.message}</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -240,57 +255,80 @@ export default function PipelinePage() {
                     Nilai Deal (Rupiah)
                   </label>
                   <Input
-                    required
                     type="number"
-                    value={newValue}
-                    onChange={(e) => setNewValue(e.target.value)}
+                    {...register("value")}
                     placeholder="Contoh: 150000000"
+                    className={errors.value ? "border-red-500" : ""}
                   />
+                  {errors.value && (
+                    <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.value.message}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                     Prioritas
                   </label>
-                  <Select
-                    value={newPriority}
-                    onValueChange={(val) => setNewPriority(val as Deal['priority'])}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Prioritas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="priority"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Prioritas" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Low">Low</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="High">High</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.priority && (
+                    <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.priority.message}</p>
+                  )}
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Tahap Awal
                 </label>
-                <Select
-                  value={newStage}
-                  onValueChange={(val) => setNewStage(val as Deal['stage'])}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih Tahap" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="lead">Lead Masuk</SelectItem>
-                    <SelectItem value="contacted">Dihubungi</SelectItem>
-                    <SelectItem value="meeting">Meeting</SelectItem>
-                    <SelectItem value="negotiation">Negosiasi</SelectItem>
-                    <SelectItem value="won">Deal Won</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="stage"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Pilih Tahap" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="lead">Lead Masuk</SelectItem>
+                        <SelectItem value="contacted">Dihubungi</SelectItem>
+                        <SelectItem value="meeting">Meeting</SelectItem>
+                        <SelectItem value="negotiation">Negosiasi</SelectItem>
+                        <SelectItem value="won">Deal Won</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.stage && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{errors.stage.message}</p>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setShowAddDealModal(false)}
+                  onClick={() => {
+                    setShowAddDealModal(false)
+                    reset()
+                  }}
                 >
                   Batal
                 </Button>

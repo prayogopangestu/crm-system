@@ -1,28 +1,67 @@
 "use client"
 
-import React, { useState } from "react"
+import React from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { Avatar, AvatarFallback } from "@/components/ui/Avatar"
-import { initialTeamMembers, pipelineStages, TeamMember } from "@/lib/mockData"
+import { TeamMember } from "@/lib/mockData"
+import { useSettingsStore } from "@/hooks/useSettingsStore"
 import { toast } from "sonner"
 
 type Tab = "profil" | "tim" | "pipeline" | "integrasi"
 
-export default function PengaturanPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("tim")
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(initialTeamMembers)
-  const [webhookEnabled, setWebhookEnabled] = useState(true)
-  const [stages, setStages] = useState(pipelineStages)
+const profileSchema = z.object({
+  firstName: z.string().min(1, "Nama depan wajib diisi"),
+  lastName: z.string().min(1, "Nama belakang wajib diisi"),
+  email: z.string().email("Format email tidak valid").min(1, "Email wajib diisi")
+})
 
-  // Invite Member Form States
-  const [showInviteModal, setShowInviteModal] = useState(false)
-  const [inviteName, setInviteName] = useState("")
-  const [inviteEmail, setInviteEmail] = useState("")
-  const [inviteRole, setInviteRole] = useState<TeamMember['role']>("Staf Sales")
+const inviteSchema = z.object({
+  inviteName: z.string().min(2, "Nama lengkap wajib diisi"),
+  inviteEmail: z.string().email("Format email tidak valid").min(1, "Email wajib diisi"),
+  inviteRole: z.enum(["Admin", "Staf Sales"])
+})
+
+type ProfileInput = z.infer<typeof profileSchema>
+type InviteInput = z.infer<typeof inviteSchema>
+
+export default function PengaturanPage() {
+  const {
+    activeTab,
+    teamMembers,
+    webhookEnabled,
+    stages,
+    showInviteModal,
+    setActiveTab,
+    setShowInviteModal,
+    inviteMember,
+    addStage,
+    setWebhookEnabled
+  } = useSettingsStore()
+
+  const { register: registerProfile, handleSubmit: handleSubmitProfile, formState: { errors: profileErrors } } = useForm<ProfileInput>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      firstName: "Sarah",
+      lastName: "Jenkins",
+      email: "sarah.j@crm-enterprise.com"
+    }
+  })
+
+  const { register: registerInvite, control: controlInvite, handleSubmit: handleSubmitInvite, reset: resetInvite, formState: { errors: inviteErrors } } = useForm<InviteInput>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: {
+      inviteName: "",
+      inviteEmail: "",
+      inviteRole: "Staf Sales"
+    }
+  })
 
   // Webhook URL
   const webhookUrl = "https://api.telegram.org/bot12345/..."
@@ -32,11 +71,8 @@ export default function PengaturanPage() {
     toast.success("Webhook URL disalin ke clipboard!")
   }
 
-  const handleInviteUser = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!inviteName || !inviteEmail) return
-
-    const initials = inviteName
+  const handleInviteUser = (data: InviteInput) => {
+    const initials = data.inviteName
       .split(" ")
       .map((n) => n[0])
       .join("")
@@ -45,18 +81,19 @@ export default function PengaturanPage() {
 
     const newMember: TeamMember = {
       id: "mem_" + Date.now().toString(),
-      name: inviteName,
-      email: inviteEmail,
-      role: inviteRole,
+      name: data.inviteName,
+      email: data.inviteEmail,
+      role: data.inviteRole,
       status: "Aktif",
       initials
     }
 
-    setTeamMembers([...teamMembers, newMember])
-    setShowInviteModal(false)
-    setInviteName("")
-    setInviteEmail("")
-    setInviteRole("Staf Sales")
+    inviteMember(newMember)
+    resetInvite()
+  }
+
+  const handleUpdateProfile = (data: ProfileInput) => {
+    toast.success("Profil diperbarui!")
   }
 
   const handleAddStage = () => {
@@ -69,7 +106,7 @@ export default function PengaturanPage() {
       color: "bg-surface-variant"
     }
 
-    setStages([...stages, newStage])
+    addStage(newStage)
   }
 
   return (
@@ -121,27 +158,46 @@ export default function PengaturanPage() {
                 <p className="text-xs text-on-surface-variant">Administrator Proyek</p>
               </div>
             </div>
-            <div className="space-y-4">
+            <form onSubmit={handleSubmitProfile(handleUpdateProfile)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">Nama Depan</label>
-                  <Input defaultValue="Sarah" />
+                  <Input
+                    {...registerProfile("firstName")}
+                    className={profileErrors.firstName ? "border-red-500" : ""}
+                  />
+                  {profileErrors.firstName && (
+                    <p className="text-red-500 text-[10px] mt-1 font-medium">{profileErrors.firstName.message}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">Nama Belakang</label>
-                  <Input defaultValue="Jenkins" />
+                  <Input
+                    {...registerProfile("lastName")}
+                    className={profileErrors.lastName ? "border-red-500" : ""}
+                  />
+                  {profileErrors.lastName && (
+                    <p className="text-red-500 text-[10px] mt-1 font-medium">{profileErrors.lastName.message}</p>
+                  )}
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">Alamat Email</label>
-                <Input type="email" defaultValue="sarah.j@crm-enterprise.com" />
+                <Input
+                  type="email"
+                  {...registerProfile("email")}
+                  className={profileErrors.email ? "border-red-500" : ""}
+                />
+                {profileErrors.email && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{profileErrors.email.message}</p>
+                )}
               </div>
               <div className="flex justify-end pt-2">
-                <Button variant="default" onClick={() => toast.success("Profil diperbarui!")}>
+                <Button type="submit" variant="default">
                   Simpan Perubahan
                 </Button>
               </div>
-            </div>
+            </form>
           </Card>
         )}
 
@@ -316,7 +372,10 @@ export default function PengaturanPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-md bg-surface-container-lowest p-6 shadow-xl relative animate-in fade-in zoom-in duration-200">
             <button
-              onClick={() => setShowInviteModal(false)}
+              onClick={() => {
+                setShowInviteModal(false)
+                resetInvite()
+              }}
               className="absolute right-4 top-4 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined">close</span>
@@ -324,52 +383,68 @@ export default function PengaturanPage() {
             <h3 className="font-headline-sm text-lg font-bold text-on-surface mb-4">
               Undang Anggota Tim
             </h3>
-            <form onSubmit={handleInviteUser} className="space-y-4">
+            <form onSubmit={handleSubmitInvite(handleInviteUser)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Nama Lengkap
                 </label>
                 <Input
-                  required
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
+                  {...registerInvite("inviteName")}
                   placeholder="Nama Lengkap Anggota"
+                  className={inviteErrors.inviteName ? "border-red-500" : ""}
                 />
+                {inviteErrors.inviteName && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{inviteErrors.inviteName.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Alamat Email
                 </label>
                 <Input
-                  required
                   type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
+                  {...registerInvite("inviteEmail")}
                   placeholder="name@company.com"
+                  className={inviteErrors.inviteEmail ? "border-red-500" : ""}
                 />
+                {inviteErrors.inviteEmail && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{inviteErrors.inviteEmail.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Peran Akses (Role)
                 </label>
-                <Select
-                  value={inviteRole}
-                  onValueChange={(val) => setInviteRole(val as TeamMember['role'])}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Pilih Peran" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Staf Sales">Staf Sales</SelectItem>
-                    <SelectItem value="Admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="inviteRole"
+                  control={controlInvite}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Pilih Peran" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Staf Sales">Staf Sales</SelectItem>
+                        <SelectItem value="Admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {inviteErrors.inviteRole && (
+                  <p className="text-red-500 text-[10px] mt-1 font-medium">{inviteErrors.inviteRole.message}</p>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setShowInviteModal(false)}
+                  onClick={() => {
+                    setShowInviteModal(false)
+                    resetInvite()
+                  }}
                 >
                   Batal
                 </Button>
