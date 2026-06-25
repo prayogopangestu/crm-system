@@ -71,16 +71,24 @@ func main() {
 	}
 	telegramClient := telegram.New()
 	service := usecase.New(
-		repository, cache, tokenManager, cipher, telegramClient, log,
+		usecase.Repositories{
+			Users: repository, Contacts: repository, Deals: repository, Tasks: repository,
+			Analytics: repository, Pipeline: repository, Integrations: repository,
+			Search: repository, Notifications: repository,
+		},
+		cache, tokenManager, cipher, telegramClient, log,
 		mustLocation(cfg.App.Timezone), cfg.App.BaseURL, cfg.Auth.BcryptCost,
 	)
 	worker := usecase.NewOutboxWorker(
-		repository, cipher, telegramClient, log,
+		repository, repository, cipher, telegramClient, log,
 		cfg.Telegram.WorkerInterval, cfg.Telegram.WorkerBatchSize,
 	)
 	go worker.Run(ctx)
 
-	handler := httpdelivery.NewHandler(service, log)
+	handler := httpdelivery.NewHandler(httpdelivery.Services{
+		Users: service, Contacts: service, Deals: service, Tasks: service,
+		Analytics: service, Settings: service, Search: service, Notifications: service,
+	}, log)
 	httpServer := &http.Server{
 		Addr:              cfg.HTTP.Addr,
 		Handler:           httpdelivery.Router(handler, tokenManager, cache, log, cfg.HTTP.AllowedOrigins, func() error { return repository.Ping(context.Background()) }),

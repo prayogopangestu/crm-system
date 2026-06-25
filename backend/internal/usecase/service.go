@@ -20,20 +20,40 @@ type TelegramSender interface {
 	Send(ctx context.Context, token, chatID, message string) error
 }
 
+type Repositories struct {
+	Users         domain.UserRepository
+	Contacts      domain.ContactRepository
+	Deals         domain.DealRepository
+	Tasks         domain.TaskRepository
+	Analytics     domain.AnalyticsRepository
+	Pipeline      domain.PipelineRepository
+	Integrations  domain.IntegrationRepository
+	Search        domain.SearchRepository
+	Notifications domain.NotificationRepository
+}
+
 type Service struct {
-	repo       domain.Repository
-	cache      domain.Cache
-	tokens     *auth.Manager
-	cipher     *cryptoutil.Cipher
-	telegram   TelegramSender
-	logger     *slog.Logger
-	location   *time.Location
-	baseURL    string
-	bcryptCost int
+	users         domain.UserRepository
+	contacts      domain.ContactRepository
+	deals         domain.DealRepository
+	tasks         domain.TaskRepository
+	analytics     domain.AnalyticsRepository
+	pipeline      domain.PipelineRepository
+	integrations  domain.IntegrationRepository
+	search        domain.SearchRepository
+	notifications domain.NotificationRepository
+	cache         domain.Cache
+	tokens        *auth.Manager
+	cipher        *cryptoutil.Cipher
+	telegram      TelegramSender
+	logger        *slog.Logger
+	location      *time.Location
+	baseURL       string
+	bcryptCost    int
 }
 
 func New(
-	repo domain.Repository,
+	repositories Repositories,
 	cache domain.Cache,
 	tokens *auth.Manager,
 	cipher *cryptoutil.Cipher,
@@ -44,7 +64,16 @@ func New(
 	bcryptCost int,
 ) *Service {
 	return &Service{
-		repo: repo, cache: cache, tokens: tokens, cipher: cipher, telegram: telegram,
+		users:         repositories.Users,
+		contacts:      repositories.Contacts,
+		deals:         repositories.Deals,
+		tasks:         repositories.Tasks,
+		analytics:     repositories.Analytics,
+		pipeline:      repositories.Pipeline,
+		integrations:  repositories.Integrations,
+		search:        repositories.Search,
+		notifications: repositories.Notifications,
+		cache:         cache, tokens: tokens, cipher: cipher, telegram: telegram,
 		logger: logger, location: location, baseURL: strings.TrimRight(baseURL, "/"),
 		bcryptCost: bcryptCost,
 	}

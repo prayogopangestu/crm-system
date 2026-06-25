@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) dashboardStats(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.DashboardStats(r.Context(), principal(r))
+	result, err := h.services.Analytics.DashboardStats(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -18,7 +18,7 @@ func (h *Handler) dashboardStats(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) conversionChart(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.ConversionChart(r.Context(), principal(r))
+	result, err := h.services.Analytics.ConversionChart(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -27,7 +27,7 @@ func (h *Handler) conversionChart(w nethttp.ResponseWriter, r *nethttp.Request) 
 }
 
 func (h *Handler) activities(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.Activities(r.Context(), principal(r), parseInt(r.URL.Query().Get("limit"), 5))
+	result, err := h.services.Analytics.Activities(r.Context(), principal(r), parseInt(r.URL.Query().Get("limit"), 5))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -36,7 +36,7 @@ func (h *Handler) activities(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) leaderboard(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.Leaderboard(r.Context(), principal(r), r.URL.Query().Get("period"))
+	result, err := h.services.Analytics.Leaderboard(r.Context(), principal(r), r.URL.Query().Get("period"))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -45,7 +45,7 @@ func (h *Handler) leaderboard(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) lostReasons(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.LostReasons(r.Context(), principal(r))
+	result, err := h.services.Analytics.LostReasons(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -54,7 +54,7 @@ func (h *Handler) lostReasons(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) goals(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.Goals(r.Context(), principal(r))
+	result, err := h.services.Analytics.Goals(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -63,7 +63,7 @@ func (h *Handler) goals(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) exportCSV(w nethttp.ResponseWriter, r *nethttp.Request) {
-	data, err := h.service.ExportCSV(r.Context(), principal(r))
+	data, err := h.services.Analytics.ExportCSV(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -72,7 +72,7 @@ func (h *Handler) exportCSV(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) exportPDF(w nethttp.ResponseWriter, r *nethttp.Request) {
-	data, err := h.service.ExportPDF(r.Context(), principal(r))
+	data, err := h.services.Analytics.ExportPDF(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return

@@ -12,7 +12,8 @@ import (
 )
 
 type fakeRepository struct {
-	domain.Repository
+	domain.UserRepository
+	domain.DealRepository
 	user       domain.User
 	stageCalls int
 }
@@ -26,9 +27,10 @@ func (f *fakeRepository) UpdateDealStage(context.Context, domain.Principal, stri
 	return nil
 }
 
-func testService(repo domain.Repository) *Service {
+func testService(repo *fakeRepository) *Service {
 	return New(
-		repo, nil, auth.New("01234567890123456789012345678901", time.Hour),
+		Repositories{Users: repo, Deals: repo},
+		nil, auth.New("01234567890123456789012345678901", time.Hour),
 		nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)),
 		time.FixedZone("WIB", 7*60*60), "http://localhost:3000", 4,
 	)

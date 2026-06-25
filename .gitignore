@@ -80,6 +80,12 @@ next-env.d.ts
 /backend/coverage.html
 /backend/*.coverprofile
 
+# Workspace-local tool caches
+**/.gocache/
+**/.cache/
+**/.testcache/
+**/.verifycache/
+
 # Go backend runtime files
 /backend/tmp/
 /backend/logs/

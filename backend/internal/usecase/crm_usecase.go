@@ -28,14 +28,14 @@ func (s *Service) ListContacts(ctx context.Context, principal domain.Principal, 
 	if status != "" && !contactStatuses[status] {
 		return domain.ContactList{}, domain.ErrInvalidInput
 	}
-	return s.repo.ListContacts(ctx, principal.OrganizationID, search, status, domain.Page{Page: page, Limit: limit})
+	return s.contacts.ListContacts(ctx, principal.OrganizationID, search, status, domain.Page{Page: page, Limit: limit})
 }
 
 func (s *Service) CreateContact(ctx context.Context, principal domain.Principal, input domain.ContactInput) (domain.Contact, error) {
 	if err := validateContact(input); err != nil {
 		return domain.Contact{}, err
 	}
-	contact, err := s.repo.CreateContact(ctx, principal, input)
+	contact, err := s.contacts.CreateContact(ctx, principal, input)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -46,7 +46,7 @@ func (s *Service) UpdateContact(ctx context.Context, principal domain.Principal,
 	if err := validateContact(input); err != nil {
 		return domain.Contact{}, err
 	}
-	contact, err := s.repo.UpdateContact(ctx, principal, id, input)
+	contact, err := s.contacts.UpdateContact(ctx, principal, id, input)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -54,7 +54,7 @@ func (s *Service) UpdateContact(ctx context.Context, principal domain.Principal,
 }
 
 func (s *Service) DeleteContact(ctx context.Context, principal domain.Principal, id string) error {
-	err := s.repo.DeleteContact(ctx, principal, id)
+	err := s.contacts.DeleteContact(ctx, principal, id)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -72,14 +72,14 @@ func validateContact(input domain.ContactInput) error {
 }
 
 func (s *Service) ListDeals(ctx context.Context, principal domain.Principal) ([]domain.Deal, error) {
-	return s.repo.ListDeals(ctx, principal.OrganizationID)
+	return s.deals.ListDeals(ctx, principal.OrganizationID)
 }
 
 func (s *Service) CreateDeal(ctx context.Context, principal domain.Principal, input domain.DealInput) (domain.Deal, error) {
 	if err := validateDeal(input); err != nil {
 		return domain.Deal{}, err
 	}
-	deal, err := s.repo.CreateDeal(ctx, principal, input)
+	deal, err := s.deals.CreateDeal(ctx, principal, input)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -90,7 +90,7 @@ func (s *Service) UpdateDeal(ctx context.Context, principal domain.Principal, id
 	if err := validateDeal(input); err != nil {
 		return domain.Deal{}, err
 	}
-	deal, err := s.repo.UpdateDeal(ctx, principal, id, input)
+	deal, err := s.deals.UpdateDeal(ctx, principal, id, input)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -104,7 +104,7 @@ func (s *Service) UpdateDealStage(ctx context.Context, principal domain.Principa
 	if input.Stage != "lost" {
 		input.LostReason = ""
 	}
-	err := s.repo.UpdateDealStage(ctx, principal, id, input)
+	err := s.deals.UpdateDealStage(ctx, principal, id, input)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -112,7 +112,7 @@ func (s *Service) UpdateDealStage(ctx context.Context, principal domain.Principa
 }
 
 func (s *Service) DeleteDeal(ctx context.Context, principal domain.Principal, id string) error {
-	err := s.repo.DeleteDeal(ctx, principal, id)
+	err := s.deals.DeleteDeal(ctx, principal, id)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -142,14 +142,14 @@ func (s *Service) ListTasks(ctx context.Context, principal domain.Principal, dat
 	if status != "" && status != "overdue" && status != "today" && status != "upcoming" {
 		return nil, domain.ErrInvalidInput
 	}
-	return s.repo.ListTasks(ctx, principal.OrganizationID, date, status, s.location)
+	return s.tasks.ListTasks(ctx, principal.OrganizationID, date, status, s.location)
 }
 
 func (s *Service) CreateTask(ctx context.Context, principal domain.Principal, input domain.TaskInput) (domain.Task, error) {
 	if err := validateTask(input, false); err != nil {
 		return domain.Task{}, err
 	}
-	task, err := s.repo.CreateTask(ctx, principal, input)
+	task, err := s.tasks.CreateTask(ctx, principal, input)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -160,7 +160,7 @@ func (s *Service) UpdateTask(ctx context.Context, principal domain.Principal, id
 	if err := validateTask(input, true); err != nil {
 		return domain.Task{}, err
 	}
-	task, err := s.repo.UpdateTask(ctx, principal, id, input)
+	task, err := s.tasks.UpdateTask(ctx, principal, id, input)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -168,7 +168,7 @@ func (s *Service) UpdateTask(ctx context.Context, principal domain.Principal, id
 }
 
 func (s *Service) ToggleTask(ctx context.Context, principal domain.Principal, id string, completed bool) error {
-	err := s.repo.ToggleTask(ctx, principal, id, completed)
+	err := s.tasks.ToggleTask(ctx, principal, id, completed)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}
@@ -176,7 +176,7 @@ func (s *Service) ToggleTask(ctx context.Context, principal domain.Principal, id
 }
 
 func (s *Service) DeleteTask(ctx context.Context, principal domain.Principal, id string) error {
-	err := s.repo.DeleteTask(ctx, principal, id)
+	err := s.tasks.DeleteTask(ctx, principal, id)
 	if err == nil {
 		s.invalidateCRM(ctx, principal.OrganizationID)
 	}

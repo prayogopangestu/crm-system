@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) listTeam(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.ListTeam(r.Context(), principal(r))
+	result, err := h.services.Users.ListTeam(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -22,7 +22,7 @@ func (h *Handler) inviteMember(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.InviteMember(r.Context(), principal(r), request)
+	result, err := h.services.Users.InviteMember(r.Context(), principal(r), request)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -33,7 +33,7 @@ func (h *Handler) inviteMember(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) revokeMember(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if err := h.service.RevokeMember(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
+	if err := h.services.Users.RevokeMember(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -41,7 +41,7 @@ func (h *Handler) revokeMember(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) listStages(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.ListStages(r.Context(), principal(r))
+	result, err := h.services.Settings.ListStages(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -54,7 +54,7 @@ func (h *Handler) createStage(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.CreateStage(r.Context(), principal(r), request)
+	result, err := h.services.Settings.CreateStage(r.Context(), principal(r), request)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -69,7 +69,7 @@ func (h *Handler) reorderStages(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	if err := h.service.ReorderStages(r.Context(), principal(r), request.StagesOrder); err != nil {
+	if err := h.services.Settings.ReorderStages(r.Context(), principal(r), request.StagesOrder); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -77,7 +77,7 @@ func (h *Handler) reorderStages(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) deleteStage(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if err := h.service.DeleteStage(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
+	if err := h.services.Settings.DeleteStage(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -85,7 +85,7 @@ func (h *Handler) deleteStage(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) getTelegram(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.GetTelegram(r.Context(), principal(r))
+	result, err := h.services.Settings.GetTelegram(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -98,7 +98,7 @@ func (h *Handler) updateTelegram(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.UpdateTelegram(r.Context(), principal(r), request)
+	result, err := h.services.Settings.UpdateTelegram(r.Context(), principal(r), request)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -107,7 +107,7 @@ func (h *Handler) updateTelegram(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) testTelegram(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if err := h.service.TestTelegram(r.Context(), principal(r)); err != nil {
+	if err := h.services.Settings.TestTelegram(r.Context(), principal(r)); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -115,7 +115,7 @@ func (h *Handler) testTelegram(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) search(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.Search(r.Context(), principal(r), r.URL.Query().Get("q"))
+	result, err := h.services.Search.Search(r.Context(), principal(r), r.URL.Query().Get("q"))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -124,7 +124,7 @@ func (h *Handler) search(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) notifications(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.Notifications(r.Context(), principal(r))
+	result, err := h.services.Notifications.Notifications(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -133,7 +133,7 @@ func (h *Handler) notifications(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) readNotification(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if err := h.service.ReadNotification(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
+	if err := h.services.Notifications.ReadNotification(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -141,7 +141,7 @@ func (h *Handler) readNotification(w nethttp.ResponseWriter, r *nethttp.Request)
 }
 
 func (h *Handler) readAllNotifications(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if err := h.service.ReadAllNotifications(r.Context(), principal(r)); err != nil {
+	if err := h.services.Notifications.ReadAllNotifications(r.Context(), principal(r)); err != nil {
 		writeError(w, r, err)
 		return
 	}

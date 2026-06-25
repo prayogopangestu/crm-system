@@ -19,7 +19,7 @@ import (
 )
 
 type profileRepository struct {
-	domain.Repository
+	domain.UserRepository
 	user domain.User
 }
 
@@ -34,7 +34,8 @@ func TestGetProfileOverGRPC(t *testing.T) {
 		Name: "Sarah Jenkins", Email: "sarah@example.com", Role: domain.RoleAdmin,
 	}}
 	service := usecase.New(
-		repo, nil, tokens, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)),
+		usecase.Repositories{Users: repo},
+		nil, tokens, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)),
 		time.UTC, "http://localhost", 4,
 	)
 	listener := bufconn.Listen(1024 * 1024)

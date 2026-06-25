@@ -14,12 +14,23 @@ import (
 )
 
 type Handler struct {
-	service *usecase.Service
-	logger  *slog.Logger
+	services Services
+	logger   *slog.Logger
 }
 
-func NewHandler(service *usecase.Service, logger *slog.Logger) *Handler {
-	return &Handler{service: service, logger: logger}
+type Services struct {
+	Users         usecase.UserUseCase
+	Contacts      usecase.ContactUseCase
+	Deals         usecase.DealUseCase
+	Tasks         usecase.TaskUseCase
+	Analytics     usecase.AnalyticsUseCase
+	Settings      usecase.SettingsUseCase
+	Search        usecase.SearchUseCase
+	Notifications usecase.NotificationUseCase
+}
+
+func NewHandler(services Services, logger *slog.Logger) *Handler {
+	return &Handler{services: services, logger: logger}
 }
 
 func decodeJSON(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {

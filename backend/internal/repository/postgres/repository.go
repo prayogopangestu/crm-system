@@ -7,27 +7,56 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prayogopangestu/crm-system/backend/internal/domain"
+	"gorm.io/gorm"
 )
 
+// Repository is a GORM-backed store. Business layers consume the smaller
+// interfaces in domain/repository.go, not this aggregate implementation.
 type Repository struct {
-	pool     *pgxpool.Pool
+	db       *gorm.DB
 	location *time.Location
 }
 
-func New(pool *pgxpool.Pool, location *time.Location) *Repository {
-	return &Repository{pool: pool, location: location}
+type scanner interface {
+	Scan(dest ...any) error
 }
 
-func (r *Repository) Ping(ctx context.Context) error { return r.pool.Ping(ctx) }
-func (r *Repository) Close()                         { r.pool.Close() }
+func New(db *gorm.DB, location *time.Location) *Repository {
+	return &Repository{db: db, location: location}
+}
+
+func (r *Repository) Ping(ctx context.Context) error {
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
+}
+
+func (r *Repository) Close() error {
+	sqlDB, err := r.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
+func (r *Repository) query(ctx context.Context) *gorm.DB {
+	return r.db.WithContext(ctx)
+}
 
 func mapError(err error) error {
-	if errors.Is(err, pgx.ErrNoRows) {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, gorm.ErrRecordNotFound):
 		return domain.ErrNotFound
+	case errors.Is(err, gorm.ErrDuplicatedKey):
+		return domain.ErrConflict
+	case errors.Is(err, gorm.ErrForeignKeyViolated):
+		return domain.ErrInvalidInput
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {

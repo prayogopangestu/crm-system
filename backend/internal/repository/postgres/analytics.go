@@ -16,36 +16,42 @@ func (r *Repository) DashboardStats(ctx context.Context, organizationID string, 
 	previousMonth := monthStart.AddDate(0, -1, 0)
 	weekStart := dayStart(now).AddDate(0, 0, -7)
 	previousWeek := weekStart.AddDate(0, 0, -7)
-	err := r.pool.QueryRow(ctx, `
+	err := r.query(ctx).Raw(`
 		SELECT
-		  count(*) FILTER (WHERE c.created_at >= $2),
-		  count(*) FILTER (WHERE c.created_at >= $3 AND c.created_at < $2),
-		  (SELECT count(*) FROM deals d WHERE d.organization_id=$1 AND d.deleted_at IS NULL
-		    AND d.stage_key='won' AND d.updated_at >= $4),
-		  (SELECT count(*) FROM deals d WHERE d.organization_id=$1 AND d.deleted_at IS NULL
-		    AND d.stage_key='won' AND d.updated_at >= $5 AND d.updated_at < $4),
-		  (SELECT COALESCE(sum(value),0) FROM deals d WHERE d.organization_id=$1
+		  count(*) FILTER (WHERE c.created_at >= ?),
+		  count(*) FILTER (WHERE c.created_at >= ? AND c.created_at < ?),
+		  (SELECT count(*) FROM deals d WHERE d.organization_id=? AND d.deleted_at IS NULL
+		    AND d.stage_key='won' AND d.updated_at >= ?),
+		  (SELECT count(*) FROM deals d WHERE d.organization_id=? AND d.deleted_at IS NULL
+		    AND d.stage_key='won' AND d.updated_at >= ? AND d.updated_at < ?),
+		  (SELECT COALESCE(sum(value),0) FROM deals d WHERE d.organization_id=?
 		    AND d.deleted_at IS NULL AND d.stage_key='won'),
-		  (SELECT count(*) FROM tasks t WHERE t.organization_id=$1 AND t.deleted_at IS NULL
-		    AND t.completed=false AND t.due_date <= $6::date AND t.priority='Tinggi')
-		FROM contacts c WHERE c.organization_id=$1 AND c.deleted_at IS NULL`,
-		organizationID, monthStart, previousMonth, weekStart, previousWeek, now,
-	).Scan(
+		  (SELECT count(*) FROM tasks t WHERE t.organization_id=? AND t.deleted_at IS NULL
+		    AND t.completed=false AND t.due_date <= ?::date AND t.priority='Tinggi')
+		FROM contacts c WHERE c.organization_id=? AND c.deleted_at IS NULL`,
+		monthStart,
+		previousMonth, monthStart,
+		organizationID, weekStart,
+		organizationID, previousWeek, weekStart,
+		organizationID,
+		organizationID, now,
+		organizationID,
+	).Row().Scan(
 		&currentLeads, &previousLeads, &currentWon, &previousWon, &revenue, &stats.UrgentTasksCount,
 	)
 	if err != nil {
 		return stats, err
 	}
-	if err := r.pool.QueryRow(ctx,
-		`SELECT count(*) FROM contacts WHERE organization_id=$1 AND deleted_at IS NULL`,
+	if err := r.query(ctx).Raw(
+		`SELECT count(*) FROM contacts WHERE organization_id=? AND deleted_at IS NULL`,
 		organizationID,
-	).Scan(&stats.TotalLeads); err != nil {
+	).Row().Scan(&stats.TotalLeads); err != nil {
 		return stats, err
 	}
-	if err := r.pool.QueryRow(ctx,
-		`SELECT count(*) FROM deals WHERE organization_id=$1 AND deleted_at IS NULL AND stage_key='won'`,
+	if err := r.query(ctx).Raw(
+		`SELECT count(*) FROM deals WHERE organization_id=? AND deleted_at IS NULL AND stage_key='won'`,
 		organizationID,
-	).Scan(&stats.DealWonCount); err != nil {
+	).Row().Scan(&stats.DealWonCount); err != nil {
 		return stats, err
 	}
 	stats.LeadsTrend = trendPercent(currentLeads, previousLeads) + " bulan ini"
@@ -57,20 +63,20 @@ func (r *Repository) DashboardStats(ctx context.Context, organizationID string, 
 
 func (r *Repository) ConversionChart(ctx context.Context, organizationID string, now time.Time) ([]domain.ConversionPoint, error) {
 	start := time.Date(now.Year(), now.Month()-5, 1, 0, 0, 0, 0, now.Location())
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.query(ctx).Raw(`
 		WITH months AS (
-		  SELECT generate_series($2::date, date_trunc('month',$3::date), interval '1 month') AS month
+		  SELECT generate_series(?::date, date_trunc('month',?::date), interval '1 month') AS month
 		)
 		SELECT to_char(m.month,'Mon'),
 		       CASE WHEN count(d.id)=0 THEN 0
 		            ELSE round(100.0*count(d.id) FILTER (WHERE d.stage_key='won')/count(d.id),2)
 		       END
 		FROM months m
-		LEFT JOIN deals d ON d.organization_id=$1 AND d.deleted_at IS NULL
+		LEFT JOIN deals d ON d.organization_id=? AND d.deleted_at IS NULL
 		  AND date_trunc('month',d.created_at)=m.month
 		GROUP BY m.month ORDER BY m.month`,
-		organizationID, start, now,
-	)
+		start, now, organizationID,
+	).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -87,12 +93,12 @@ func (r *Repository) ConversionChart(ctx context.Context, organizationID string,
 }
 
 func (r *Repository) Activities(ctx context.Context, organizationID string, limit int) ([]domain.Activity, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.query(ctx).Raw(`
 		SELECT id,actor_name,action,target,is_highlight,created_at
-		FROM activities WHERE organization_id=$1
-		ORDER BY created_at DESC LIMIT $2`,
+		FROM activities WHERE organization_id=?
+		ORDER BY created_at DESC LIMIT ?`,
 		organizationID, limit,
-	)
+	).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -116,17 +122,17 @@ func (r *Repository) Leaderboard(ctx context.Context, organizationID string, mon
 	start := time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, month.Location())
 	end := start.AddDate(0, 1, 0)
 	previous := start.AddDate(0, -1, 0)
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.query(ctx).Raw(`
 		SELECT trim(u.first_name || ' ' || u.last_name),u.role,u.avatar_url,
-		       COALESCE(sum(d.value) FILTER (WHERE d.updated_at >= $2 AND d.updated_at < $3),0),
-		       COALESCE(sum(d.value) FILTER (WHERE d.updated_at >= $4 AND d.updated_at < $2),0)
+		       COALESCE(sum(d.value) FILTER (WHERE d.updated_at >= ? AND d.updated_at < ?),0),
+		       COALESCE(sum(d.value) FILTER (WHERE d.updated_at >= ? AND d.updated_at < ?),0)
 		FROM users u
 		LEFT JOIN deals d ON d.assignee_id=u.id AND d.organization_id=u.organization_id
 		  AND d.deleted_at IS NULL AND d.stage_key='won'
-		WHERE u.organization_id=$1 AND u.revoked_at IS NULL
+		WHERE u.organization_id=? AND u.revoked_at IS NULL
 		GROUP BY u.id ORDER BY 4 DESC`,
-		organizationID, start, end, previous,
-	)
+		start, end, previous, start, organizationID,
+	).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -148,13 +154,13 @@ func (r *Repository) Leaderboard(ctx context.Context, organizationID string, mon
 }
 
 func (r *Repository) LostReasons(ctx context.Context, organizationID string) ([]domain.LostReason, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.query(ctx).Raw(`
 		SELECT COALESCE(NULLIF(lost_reason,''),'Tidak diketahui'),count(*)
 		FROM deals
-		WHERE organization_id=$1 AND deleted_at IS NULL AND stage_key='lost'
+		WHERE organization_id=? AND deleted_at IS NULL AND stage_key='lost'
 		GROUP BY 1 ORDER BY 2 DESC`,
 		organizationID,
-	)
+	).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +186,7 @@ func (r *Repository) LostReasons(ctx context.Context, organizationID string) ([]
 }
 
 func (r *Repository) Goals(ctx context.Context, organizationID string) ([]domain.PerformanceGoal, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.query(ctx).Raw(`
 		SELECT g.month,g.goal,
 		       COALESCE(sum(d.value) FILTER (
 		         WHERE d.updated_at >= g.month
@@ -189,10 +195,10 @@ func (r *Repository) Goals(ctx context.Context, organizationID string) ([]domain
 		FROM performance_goals g
 		LEFT JOIN deals d ON d.organization_id=g.organization_id
 		  AND d.deleted_at IS NULL AND d.stage_key='won'
-		WHERE g.organization_id=$1
+		WHERE g.organization_id=?
 		GROUP BY g.id ORDER BY g.month DESC`,
 		organizationID,
-	)
+	).Rows()
 	if err != nil {
 		return nil, err
 	}

@@ -6,34 +6,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/prayogopangestu/crm-system/backend/internal/domain"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
 func (r *Repository) ListStages(ctx context.Context, organizationID string) ([]domain.PipelineStage, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT id,organization_id,key,name,color,position,is_system,created_at
-		FROM pipeline_stages WHERE organization_id=$1 ORDER BY position`,
-		organizationID,
-	)
-	if err != nil {
+	var models []pipelineStageModel
+	if err := r.query(ctx).
+		Where("organization_id = ?", organizationID).
+		Order("position").
+		Find(&models).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	stages := make([]domain.PipelineStage, 0)
-	for rows.Next() {
-		var stage domain.PipelineStage
-		if err := rows.Scan(
-			&stage.ID, &stage.OrganizationID, &stage.Key, &stage.Name, &stage.Color,
-			&stage.Position, &stage.IsSystem, &stage.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		stages = append(stages, stage)
+	stages := make([]domain.PipelineStage, 0, len(models))
+	for _, model := range models {
+		stages = append(stages, stageFromModel(model))
 	}
-	return stages, rows.Err()
+	return stages, nil
 }
 
 func (r *Repository) CreateStage(ctx context.Context, organizationID string, stage domain.PipelineStage) (domain.PipelineStage, error) {
@@ -44,103 +36,105 @@ func (r *Repository) CreateStage(ctx context.Context, organizationID string, sta
 	if stage.Color == "" {
 		stage.Color = "bg-surface-variant"
 	}
-	err := r.pool.QueryRow(ctx, `
-		INSERT INTO pipeline_stages (organization_id,key,name,color,position)
-		SELECT $1,$2,$3,$4,COALESCE(max(position),0)+1
-		FROM pipeline_stages WHERE organization_id=$1
-		RETURNING id,organization_id,key,name,color,position,is_system,created_at`,
-		organizationID, stage.Key, stage.Name, stage.Color,
-	).Scan(
-		&stage.ID, &stage.OrganizationID, &stage.Key, &stage.Name, &stage.Color,
-		&stage.Position, &stage.IsSystem, &stage.CreatedAt,
-	)
+	var model pipelineStageModel
+	err := r.query(ctx).Transaction(func(tx *gorm.DB) error {
+		var maxPosition int
+		if err := tx.Model(&pipelineStageModel{}).
+			Select("COALESCE(MAX(position), 0)").
+			Where("organization_id = ?", organizationID).
+			Scan(&maxPosition).Error; err != nil {
+			return err
+		}
+		model = pipelineStageModel{
+			OrganizationID: organizationID,
+			Key:            stage.Key,
+			Name:           stage.Name,
+			Color:          stage.Color,
+			Position:       maxPosition + 1,
+		}
+		return mapError(tx.Create(&model).Error)
+	})
 	if err != nil {
-		return domain.PipelineStage{}, mapError(err)
+		return domain.PipelineStage{}, err
 	}
-	return stage, nil
+	return stageFromModel(model), nil
 }
 
 func (r *Repository) ReorderStages(ctx context.Context, organizationID string, ids []string) error {
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	var count int
-	if err := tx.QueryRow(ctx,
-		`SELECT count(*) FROM pipeline_stages WHERE organization_id=$1`,
-		organizationID,
-	).Scan(&count); err != nil {
-		return err
-	}
-	if count != len(ids) {
-		return domain.ErrInvalidInput
-	}
-	// Move positions out of the unique range first.
-	if _, err := tx.Exec(ctx,
-		`UPDATE pipeline_stages SET position=position+1000 WHERE organization_id=$1`,
-		organizationID,
-	); err != nil {
-		return err
-	}
-	for index, id := range ids {
-		tag, err := tx.Exec(ctx, `
-			UPDATE pipeline_stages SET position=$1,updated_at=now()
-			WHERE id=$2 AND organization_id=$3`,
-			index+1, id, organizationID,
-		)
-		if err != nil {
-			return mapError(err)
+	return r.query(ctx).Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&pipelineStageModel{}).
+			Where("organization_id = ?", organizationID).
+			Count(&count).Error; err != nil {
+			return err
 		}
-		if tag.RowsAffected() != 1 {
+		if count != int64(len(ids)) {
 			return domain.ErrInvalidInput
 		}
-	}
-	return tx.Commit(ctx)
+		if err := tx.Model(&pipelineStageModel{}).
+			Where("organization_id = ?", organizationID).
+			UpdateColumn("position", gorm.Expr("position + 1000")).Error; err != nil {
+			return mapError(err)
+		}
+		for index, id := range ids {
+			result := tx.Model(&pipelineStageModel{}).
+				Where("id = ? AND organization_id = ?", id, organizationID).
+				Updates(map[string]any{"position": index + 1, "updated_at": time.Now()})
+			if result.Error != nil {
+				return mapError(result.Error)
+			}
+			if result.RowsAffected != 1 {
+				return domain.ErrInvalidInput
+			}
+		}
+		return nil
+	})
 }
 
 func (r *Repository) DeleteStage(ctx context.Context, organizationID, id string) error {
-	var key string
-	var system bool
-	if err := r.pool.QueryRow(ctx, `
-		SELECT key,is_system FROM pipeline_stages WHERE id=$1 AND organization_id=$2`,
-		id, organizationID,
-	).Scan(&key, &system); err != nil {
+	var model pipelineStageModel
+	if err := r.query(ctx).
+		Where("id = ? AND organization_id = ?", id, organizationID).
+		First(&model).Error; err != nil {
 		return mapError(err)
 	}
-	if system {
+	if model.IsSystem {
 		return domain.ErrForbidden
 	}
-	var used bool
-	if err := r.pool.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM deals
-			WHERE organization_id=$1 AND stage_key=$2 AND deleted_at IS NULL)`,
-		organizationID, key,
-	).Scan(&used); err != nil {
+	var used int64
+	if err := r.query(ctx).Model(&dealModel{}).
+		Where("organization_id = ? AND stage_key = ? AND deleted_at IS NULL", organizationID, model.Key).
+		Count(&used).Error; err != nil {
 		return err
 	}
-	if used {
+	if used > 0 {
 		return domain.ErrStageInUse
 	}
-	_, err := r.pool.Exec(ctx,
-		`DELETE FROM pipeline_stages WHERE id=$1 AND organization_id=$2`,
-		id, organizationID,
-	)
-	return mapError(err)
+	result := r.query(ctx).Where("id = ? AND organization_id = ?", id, organizationID).Delete(&pipelineStageModel{})
+	if result.Error != nil {
+		return mapError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 func (r *Repository) GetTelegram(ctx context.Context, organizationID string) (domain.TelegramIntegration, error) {
-	var value domain.TelegramIntegration
-	err := r.pool.QueryRow(ctx, `
-		SELECT organization_id,enabled,chat_id,bot_token_encrypted,updated_at
-		FROM telegram_integrations WHERE organization_id=$1`,
-		organizationID,
-	).Scan(&value.OrganizationID, &value.Enabled, &value.ChatID, &value.EncryptedToken, &value.UpdatedAt)
+	var model telegramIntegrationModel
+	err := r.query(ctx).Where("organization_id = ?", organizationID).First(&model).Error
 	if err != nil {
 		if mapError(err) == domain.ErrNotFound {
 			return domain.TelegramIntegration{OrganizationID: organizationID}, nil
 		}
 		return domain.TelegramIntegration{}, err
+	}
+	value := domain.TelegramIntegration{
+		OrganizationID: model.OrganizationID,
+		Enabled:        model.Enabled,
+		ChatID:         model.ChatID,
+		EncryptedToken: model.BotTokenEncrypted,
+		UpdatedAt:      model.UpdatedAt,
 	}
 	value.HasToken = value.EncryptedToken != ""
 	if value.HasToken {
@@ -150,56 +144,53 @@ func (r *Repository) GetTelegram(ctx context.Context, organizationID string) (do
 }
 
 func (r *Repository) UpsertTelegram(ctx context.Context, organizationID string, input domain.TelegramIntegration) error {
-	_, err := r.pool.Exec(ctx, `
-		INSERT INTO telegram_integrations
-		    (organization_id,enabled,chat_id,bot_token_encrypted)
-		VALUES ($1,$2,$3,$4)
-		ON CONFLICT (organization_id) DO UPDATE SET
-		    enabled=EXCLUDED.enabled,
-		    chat_id=CASE WHEN EXCLUDED.chat_id='' THEN telegram_integrations.chat_id ELSE EXCLUDED.chat_id END,
-		    bot_token_encrypted=CASE WHEN EXCLUDED.bot_token_encrypted='' THEN telegram_integrations.bot_token_encrypted ELSE EXCLUDED.bot_token_encrypted END,
-		    updated_at=now()`,
-		organizationID, input.Enabled, input.ChatID, input.EncryptedToken,
-	)
-	return mapError(err)
+	model := telegramIntegrationModel{
+		OrganizationID:    organizationID,
+		Enabled:           input.Enabled,
+		ChatID:            input.ChatID,
+		BotTokenEncrypted: input.EncryptedToken,
+	}
+	return mapError(r.query(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "organization_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"enabled":             gorm.Expr("EXCLUDED.enabled"),
+			"chat_id":             gorm.Expr("CASE WHEN EXCLUDED.chat_id = '' THEN telegram_integrations.chat_id ELSE EXCLUDED.chat_id END"),
+			"bot_token_encrypted": gorm.Expr("CASE WHEN EXCLUDED.bot_token_encrypted = '' THEN telegram_integrations.bot_token_encrypted ELSE EXCLUDED.bot_token_encrypted END"),
+			"updated_at":          time.Now(),
+		}),
+	}).Create(&model).Error)
 }
 
 func (r *Repository) Search(ctx context.Context, organizationID, query string) (domain.SearchResult, error) {
 	pattern := "%" + query + "%"
 	result := domain.SearchResult{Contacts: []domain.Contact{}, Tasks: []domain.Task{}, Deals: []domain.Deal{}}
-	rows, err := r.pool.Query(ctx, `
-		SELECT id,organization_id,owner_id,name,email,company,role,status,avatar_url,
-		       last_contacted_at,created_at,updated_at
-		FROM contacts
-		WHERE organization_id=$1 AND deleted_at IS NULL
-		  AND (name ILIKE $2 OR email ILIKE $2 OR company ILIKE $2)
-		ORDER BY updated_at DESC LIMIT 10`,
-		organizationID, pattern,
-	)
+
+	contactRows, err := r.query(ctx).Model(&contactModel{}).
+		Where("organization_id = ? AND deleted_at IS NULL", organizationID).
+		Where("name ILIKE ? OR email ILIKE ? OR company ILIKE ?", pattern, pattern, pattern).
+		Order("updated_at DESC").Limit(10).Rows()
 	if err != nil {
 		return result, err
 	}
-	for rows.Next() {
-		item, scanErr := r.scanContact(rows)
-		if scanErr != nil {
-			rows.Close()
-			return result, scanErr
+	for contactRows.Next() {
+		var model contactModel
+		if err := r.query(ctx).ScanRows(contactRows, &model); err != nil {
+			contactRows.Close()
+			return result, err
 		}
+		item := contactFromModel(model)
+		r.decorateContact(&item)
 		result.Contacts = append(result.Contacts, item)
 	}
-	rows.Close()
+	contactRows.Close()
 
-	taskRows, err := r.pool.Query(ctx, `
-		SELECT t.id,t.organization_id,t.title,t.company,to_char(t.due_time,'HH24:MI'),
-		       to_char(t.due_date,'YYYY-MM-DD'),t.type,t.completed,t.notes,t.priority,
-		       COALESCE(trim(u.first_name || ' ' || u.last_name),''),
-		       COALESCE(u.id::text,''),t.created_at,t.updated_at
-		FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id
-		WHERE t.organization_id=$1 AND t.deleted_at IS NULL
-		  AND (t.title ILIKE $2 OR t.company ILIKE $2 OR t.notes ILIKE $2)
-		ORDER BY t.updated_at DESC LIMIT 10`,
-		organizationID, pattern,
-	)
+	taskRows, err := r.query(ctx).
+		Table("tasks AS t").
+		Select(taskSelect).
+		Joins("LEFT JOIN users u ON u.id = t.assignee_id AND u.organization_id = t.organization_id").
+		Where("t.organization_id = ? AND t.deleted_at IS NULL", organizationID).
+		Where("t.title ILIKE ? OR t.company ILIKE ? OR t.notes ILIKE ?", pattern, pattern, pattern).
+		Order("t.updated_at DESC").Limit(10).Rows()
 	if err != nil {
 		return result, err
 	}
@@ -213,16 +204,12 @@ func (r *Repository) Search(ctx context.Context, organizationID, query string) (
 	}
 	taskRows.Close()
 
-	dealRows, err := r.pool.Query(ctx, `
-		SELECT d.id,d.organization_id,d.title,d.company,d.value,d.priority,d.stage_key,d.lost_reason,
-		       COALESCE(u.id::text,''),COALESCE(trim(u.first_name || ' ' || u.last_name),''),
-		       COALESCE(u.avatar_url,''),d.created_at,d.updated_at
-		FROM deals d LEFT JOIN users u ON u.id=d.assignee_id
-		WHERE d.organization_id=$1 AND d.deleted_at IS NULL
-		  AND (d.title ILIKE $2 OR d.company ILIKE $2)
-		ORDER BY d.updated_at DESC LIMIT 10`,
-		organizationID, pattern,
-	)
+	dealRows, err := r.query(ctx).Raw(
+		dealSelect+` WHERE d.organization_id = ? AND d.deleted_at IS NULL
+			AND (d.title ILIKE ? OR d.company ILIKE ?)
+			ORDER BY d.updated_at DESC LIMIT 10`,
+		organizationID, pattern, pattern,
+	).Rows()
 	if err != nil {
 		return result, err
 	}
@@ -238,13 +225,13 @@ func (r *Repository) Search(ctx context.Context, organizationID, query string) (
 }
 
 func (r *Repository) ListNotifications(ctx context.Context, principal domain.Principal) ([]domain.Notification, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.query(ctx).Raw(`
 		SELECT id,title,message,created_at,read_at IS NOT NULL
 		FROM notifications
-		WHERE organization_id=$1 AND (user_id=$2 OR user_id IS NULL)
+		WHERE organization_id = ? AND (user_id = ? OR user_id IS NULL)
 		ORDER BY created_at DESC LIMIT 100`,
 		principal.OrganizationID, principal.UserID,
-	)
+	).Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -263,85 +250,65 @@ func (r *Repository) ListNotifications(ctx context.Context, principal domain.Pri
 }
 
 func (r *Repository) ReadNotification(ctx context.Context, principal domain.Principal, id string) error {
-	tag, err := r.pool.Exec(ctx, `
-		UPDATE notifications SET read_at=COALESCE(read_at,now())
-		WHERE id=$1 AND organization_id=$2 AND (user_id=$3 OR user_id IS NULL)`,
-		id, principal.OrganizationID, principal.UserID,
-	)
-	if err != nil {
-		return err
+	result := r.query(ctx).Model(&notificationModel{}).
+		Where("id = ? AND organization_id = ? AND (user_id = ? OR user_id IS NULL)", id, principal.OrganizationID, principal.UserID).
+		UpdateColumn("read_at", gorm.Expr("COALESCE(read_at, now())"))
+	if result.Error != nil {
+		return result.Error
 	}
-	if tag.RowsAffected() == 0 {
+	if result.RowsAffected == 0 {
 		return domain.ErrNotFound
 	}
 	return nil
 }
 
 func (r *Repository) ReadAllNotifications(ctx context.Context, principal domain.Principal) error {
-	_, err := r.pool.Exec(ctx, `
-		UPDATE notifications SET read_at=COALESCE(read_at,now())
-		WHERE organization_id=$1 AND (user_id=$2 OR user_id IS NULL)`,
-		principal.OrganizationID, principal.UserID,
-	)
-	return err
+	return r.query(ctx).Model(&notificationModel{}).
+		Where("organization_id = ? AND (user_id = ? OR user_id IS NULL)", principal.OrganizationID, principal.UserID).
+		UpdateColumn("read_at", gorm.Expr("COALESCE(read_at, now())")).Error
 }
 
 func (r *Repository) ClaimOutbox(ctx context.Context, limit int) ([]domain.OutboxEvent, error) {
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	rows, err := tx.Query(ctx, `
-		SELECT id,organization_id,event_type,payload,attempts
-		FROM outbox_events
-		WHERE processed_at IS NULL AND next_attempt_at <= now()
-		ORDER BY created_at
-		FOR UPDATE SKIP LOCKED LIMIT $1`,
-		limit,
-	)
-	if err != nil {
-		return nil, err
-	}
 	events := make([]domain.OutboxEvent, 0)
-	for rows.Next() {
-		var event domain.OutboxEvent
-		if err := rows.Scan(&event.ID, &event.OrganizationID, &event.EventType, &event.Payload, &event.Attempts); err != nil {
-			rows.Close()
-			return nil, err
+	err := r.query(ctx).Transaction(func(tx *gorm.DB) error {
+		var models []outboxEventModel
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+			Where("processed_at IS NULL AND next_attempt_at <= now()").
+			Order("created_at").
+			Limit(limit).
+			Find(&models).Error; err != nil {
+			return err
 		}
-		events = append(events, event)
-	}
-	rows.Close()
-	for _, event := range events {
-		if _, err := tx.Exec(ctx, `
-			UPDATE outbox_events SET next_attempt_at=now()+interval '1 minute'
-			WHERE id=$1`,
-			event.ID,
-		); err != nil {
-			return nil, err
+		if len(models) == 0 {
+			return nil
 		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-	return events, nil
+		ids := make([]string, 0, len(models))
+		for _, model := range models {
+			ids = append(ids, model.ID)
+			events = append(events, domain.OutboxEvent{
+				ID: model.ID, OrganizationID: model.OrganizationID,
+				EventType: model.EventType, Payload: model.Payload, Attempts: model.Attempts,
+			})
+		}
+		return tx.Model(&outboxEventModel{}).
+			Where("id IN ?", ids).
+			UpdateColumn("next_attempt_at", gorm.Expr("now() + interval '1 minute'")).Error
+	})
+	return events, err
 }
 
 func (r *Repository) CompleteOutbox(ctx context.Context, id string) error {
-	_, err := r.pool.Exec(ctx,
-		`UPDATE outbox_events SET processed_at=now(),last_error='' WHERE id=$1`,
-		id,
-	)
-	return err
+	return r.query(ctx).Model(&outboxEventModel{}).
+		Where("id = ?", id).
+		Updates(map[string]any{"processed_at": time.Now(), "last_error": ""}).Error
 }
 
 func (r *Repository) RetryOutbox(ctx context.Context, id, reason string, next time.Time) error {
-	_, err := r.pool.Exec(ctx, `
-		UPDATE outbox_events
-		SET attempts=attempts+1,last_error=$1,next_attempt_at=$2
-		WHERE id=$3`,
-		reason, next, id,
-	)
-	return err
+	return r.query(ctx).Model(&outboxEventModel{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"attempts":        gorm.Expr("attempts + 1"),
+			"last_error":      reason,
+			"next_attempt_at": next,
+		}).Error
 }

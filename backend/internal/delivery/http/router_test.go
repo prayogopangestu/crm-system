@@ -13,7 +13,7 @@ import (
 
 func TestHealthAndReadiness(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := NewHandler(nil, logger)
+	handler := NewHandler(Services{}, logger)
 	router := Router(
 		handler, auth.New("01234567890123456789012345678901", time.Hour),
 		nil, logger, []string{"http://localhost:3000"}, func() error { return nil },
@@ -30,7 +30,7 @@ func TestHealthAndReadiness(t *testing.T) {
 
 func TestProtectedRouteRequiresBearerToken(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := NewHandler(nil, logger)
+	handler := NewHandler(Services{}, logger)
 	router := Router(
 		handler, auth.New("01234567890123456789012345678901", time.Hour),
 		nil, logger, nil, func() error { return nil },

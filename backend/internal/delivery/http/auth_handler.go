@@ -23,7 +23,7 @@ func (h *Handler) register(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if name == "" {
 		name = strings.TrimSpace(request.FullName)
 	}
-	_, err := h.service.Register(r.Context(), domain.RegisterInput{
+	_, err := h.services.Users.Register(r.Context(), domain.RegisterInput{
 		Name: name, CompanyName: request.CompanyName, Email: request.Email, Password: request.Password,
 	})
 	if err != nil {
@@ -38,7 +38,7 @@ func (h *Handler) login(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.Login(r.Context(), request)
+	result, err := h.services.Users.Login(r.Context(), request)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -54,7 +54,7 @@ func (h *Handler) acceptInvite(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	_, err := h.service.AcceptInvite(r.Context(), request.Token, request.Password)
+	_, err := h.services.Users.AcceptInvite(r.Context(), request.Token, request.Password)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -63,7 +63,7 @@ func (h *Handler) acceptInvite(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) getProfile(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.Profile(r.Context(), principal(r))
+	result, err := h.services.Users.Profile(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -76,7 +76,7 @@ func (h *Handler) updateProfile(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.UpdateProfile(r.Context(), principal(r), request)
+	result, err := h.services.Users.UpdateProfile(r.Context(), principal(r), request)
 	if err != nil {
 		writeError(w, r, err)
 		return

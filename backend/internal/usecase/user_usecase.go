@@ -25,14 +25,14 @@ func (s *Service) Register(ctx context.Context, input domain.RegisterInput) (dom
 		return domain.User{}, err
 	}
 	first, last := splitName(input.Name)
-	return s.repo.Register(ctx, input.CompanyName, domain.User{
+	return s.users.Register(ctx, input.CompanyName, domain.User{
 		FirstName: first, LastName: last, Email: input.Email,
 		PasswordHash: string(hash), Role: domain.RoleAdmin,
 	})
 }
 
 func (s *Service) Login(ctx context.Context, input domain.LoginInput) (domain.LoginResult, error) {
-	user, err := s.repo.UserByEmail(ctx, strings.ToLower(strings.TrimSpace(input.Email)))
+	user, err := s.users.UserByEmail(ctx, strings.ToLower(strings.TrimSpace(input.Email)))
 	if err != nil {
 		if err == domain.ErrNotFound {
 			return domain.LoginResult{}, domain.ErrUnauthorized
@@ -62,7 +62,7 @@ func (s *Service) AcceptInvite(ctx context.Context, token, password string) (dom
 	if err != nil {
 		return domain.User{}, err
 	}
-	return s.repo.AcceptInvite(ctx, tokenHash(token), string(hash))
+	return s.users.AcceptInvite(ctx, tokenHash(token), string(hash))
 }
 
 func (s *Service) Profile(ctx context.Context, principal domain.Principal) (domain.User, error) {
@@ -70,7 +70,7 @@ func (s *Service) Profile(ctx context.Context, principal domain.Principal) (doma
 	key := "crm:" + principal.OrganizationID + ":profile:" + principal.UserID
 	err := s.cached(ctx, key, 5*time.Minute, &user, func() error {
 		var err error
-		user, err = s.repo.UserByID(ctx, principal.OrganizationID, principal.UserID)
+		user, err = s.users.UserByID(ctx, principal.OrganizationID, principal.UserID)
 		return err
 	})
 	return user, err
@@ -83,7 +83,7 @@ func (s *Service) UpdateProfile(ctx context.Context, principal domain.Principal,
 	if _, err := mail.ParseAddress(input.Email); err != nil {
 		return domain.User{}, domain.ErrInvalidInput
 	}
-	user, err := s.repo.UpdateProfile(ctx, principal, input)
+	user, err := s.users.UpdateProfile(ctx, principal, input)
 	if err == nil {
 		s.invalidateProfile(ctx, principal.OrganizationID, principal.UserID)
 	}
@@ -94,7 +94,7 @@ func (s *Service) ListTeam(ctx context.Context, principal domain.Principal) ([]d
 	if err := requireAdmin(principal); err != nil {
 		return nil, err
 	}
-	return s.repo.ListTeam(ctx, principal.OrganizationID)
+	return s.users.ListTeam(ctx, principal.OrganizationID)
 }
 
 func (s *Service) InviteMember(ctx context.Context, principal domain.Principal, input domain.InviteInput) (domain.InviteResult, error) {
@@ -114,7 +114,7 @@ func (s *Service) InviteMember(ctx context.Context, principal domain.Principal, 
 		return domain.InviteResult{}, err
 	}
 	first, last := splitName(input.Name)
-	user, err := s.repo.InviteMember(ctx, principal, domain.User{
+	user, err := s.users.InviteMember(ctx, principal, domain.User{
 		FirstName: first, LastName: last, Email: input.Email, Role: input.Role,
 	}, domain.Invitation{TokenHash: hash, ExpiresAt: time.Now().Add(72 * time.Hour)})
 	if err != nil {
@@ -132,7 +132,7 @@ func (s *Service) RevokeMember(ctx context.Context, principal domain.Principal, 
 	if userID == principal.UserID {
 		return domain.ErrInvalidInput
 	}
-	err := s.repo.RevokeMember(ctx, principal.OrganizationID, userID)
+	err := s.users.RevokeMember(ctx, principal.OrganizationID, userID)
 	if err == nil {
 		s.invalidateProfile(ctx, principal.OrganizationID, userID)
 	}

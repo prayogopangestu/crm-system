@@ -17,10 +17,10 @@ import (
 
 type UserServer struct {
 	userv1.UnimplementedUserServiceServer
-	service *usecase.Service
+	service usecase.UserUseCase
 }
 
-func NewUserServer(service *usecase.Service) *UserServer {
+func NewUserServer(service usecase.UserUseCase) *UserServer {
 	return &UserServer{service: service}
 }
 

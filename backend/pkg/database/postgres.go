@@ -3,24 +3,32 @@ package database
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-func OpenPostgres(ctx context.Context, url string, minConns, maxConns int32) (*pgxpool.Pool, error) {
-	cfg, err := pgxpool.ParseConfig(url)
+func OpenPostgres(ctx context.Context, url string, minConns, maxConns int32) (*gorm.DB, error) {
+	db, err := gorm.Open(postgres.Open(url), &gorm.Config{
+		PrepareStmt:            true,
+		SkipDefaultTransaction: true,
+		TranslateError:         true,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("parse postgres config: %w", err)
+		return nil, fmt.Errorf("open postgres with gorm: %w", err)
 	}
-	cfg.MinConns = minConns
-	cfg.MaxConns = maxConns
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, fmt.Errorf("open postgres: %w", err)
+		return nil, fmt.Errorf("get postgres connection pool: %w", err)
 	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
+	sqlDB.SetMaxIdleConns(int(minConns))
+	sqlDB.SetMaxOpenConns(int(maxConns))
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
+	if err := sqlDB.PingContext(ctx); err != nil {
+		_ = sqlDB.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
-	return pool, nil
+	return db, nil
 }

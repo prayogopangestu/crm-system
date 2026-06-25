@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) listDeals(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.ListDeals(r.Context(), principal(r))
+	result, err := h.services.Deals.ListDeals(r.Context(), principal(r))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -22,7 +22,7 @@ func (h *Handler) createDeal(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.CreateDeal(r.Context(), principal(r), request)
+	result, err := h.services.Deals.CreateDeal(r.Context(), principal(r), request)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -35,7 +35,7 @@ func (h *Handler) updateDeal(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.UpdateDeal(r.Context(), principal(r), chi.URLParam(r, "id"), request)
+	result, err := h.services.Deals.UpdateDeal(r.Context(), principal(r), chi.URLParam(r, "id"), request)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -48,7 +48,7 @@ func (h *Handler) updateDealStage(w nethttp.ResponseWriter, r *nethttp.Request) 
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	if err := h.service.UpdateDealStage(r.Context(), principal(r), chi.URLParam(r, "id"), request); err != nil {
+	if err := h.services.Deals.UpdateDealStage(r.Context(), principal(r), chi.URLParam(r, "id"), request); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -56,7 +56,7 @@ func (h *Handler) updateDealStage(w nethttp.ResponseWriter, r *nethttp.Request) 
 }
 
 func (h *Handler) deleteDeal(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if err := h.service.DeleteDeal(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
+	if err := h.services.Deals.DeleteDeal(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
 		writeError(w, r, err)
 		return
 	}

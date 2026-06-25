@@ -2,42 +2,38 @@ package postgres
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/prayogopangestu/crm-system/backend/internal/domain"
 )
 
+const taskSelect = `
+	t.id,t.organization_id,t.title,t.company,to_char(t.due_time,'HH24:MI') AS due_time,
+	to_char(t.due_date,'YYYY-MM-DD') AS due_date,t.type,t.completed,t.notes,t.priority,
+	COALESCE(trim(u.first_name || ' ' || u.last_name),'') AS assignee,
+	COALESCE(u.id::text,'') AS assignee_id,t.created_at,t.updated_at`
+
 func (r *Repository) ListTasks(ctx context.Context, organizationID, date, status string, location *time.Location) ([]domain.Task, error) {
 	now := time.Now().In(location)
-	args := []any{organizationID}
-	where := []string{"t.organization_id=$1", "t.deleted_at IS NULL"}
+	query := r.query(ctx).
+		Table("tasks AS t").
+		Select(taskSelect).
+		Joins("LEFT JOIN users u ON u.id = t.assignee_id AND u.organization_id = t.organization_id").
+		Where("t.organization_id = ? AND t.deleted_at IS NULL", organizationID)
 	if date != "" {
-		args = append(args, date)
-		where = append(where, fmt.Sprintf("t.due_date=$%d::date", len(args)))
+		query = query.Where("t.due_date = ?::date", date)
 	} else {
+		today := now.Format("2006-01-02")
 		switch status {
 		case "overdue":
-			args = append(args, now.Format("2006-01-02"))
-			where = append(where, fmt.Sprintf("t.due_date < $%d::date AND t.completed=false", len(args)))
+			query = query.Where("t.due_date < ?::date AND t.completed = false", today)
 		case "today":
-			args = append(args, now.Format("2006-01-02"))
-			where = append(where, fmt.Sprintf("t.due_date = $%d::date", len(args)))
+			query = query.Where("t.due_date = ?::date", today)
 		case "upcoming":
-			args = append(args, now.Format("2006-01-02"))
-			where = append(where, fmt.Sprintf("t.due_date > $%d::date", len(args)))
+			query = query.Where("t.due_date > ?::date", today)
 		}
 	}
-	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
-		SELECT t.id,t.organization_id,t.title,t.company,to_char(t.due_time,'HH24:MI'),
-		       to_char(t.due_date,'YYYY-MM-DD'),t.type,t.completed,t.notes,t.priority,
-		       COALESCE(trim(u.first_name || ' ' || u.last_name),''),
-		       COALESCE(u.id::text,''),t.created_at,t.updated_at
-		FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id AND u.organization_id=t.organization_id
-		WHERE %s ORDER BY t.due_date,t.due_time`, strings.Join(where, " AND ")),
-		args...,
-	)
+	rows, err := query.Order("t.due_date,t.due_time").Rows()
 	if err != nil {
 		return nil, err
 	}
@@ -58,95 +54,121 @@ func (r *Repository) CreateTask(ctx context.Context, principal domain.Principal,
 	if err != nil {
 		return domain.Task{}, err
 	}
-	var id string
-	err = r.pool.QueryRow(ctx, `
-		INSERT INTO tasks
-		    (organization_id,assignee_id,title,company,due_date,due_time,type,priority,notes,completed,completed_at)
-		VALUES ($1,$2,$3,$4,$5::date,$6::time,$7,$8,$9,$10,
-		        CASE WHEN $10 THEN now() ELSE NULL END)
-		RETURNING id`,
-		principal.OrganizationID, assigneeID, input.Title, input.Company, input.Date,
-		input.Time, input.Type, input.Priority, input.Notes, input.Completed,
-	).Scan(&id)
+	dueDate, err := time.Parse("2006-01-02", input.Date)
 	if err != nil {
+		return domain.Task{}, domain.ErrInvalidInput
+	}
+	model := taskModel{
+		OrganizationID: principal.OrganizationID,
+		AssigneeID:     &assigneeID,
+		Title:          input.Title,
+		Company:        input.Company,
+		DueDate:        dueDate,
+		DueTime:        input.Time,
+		Type:           input.Type,
+		Priority:       input.Priority,
+		Notes:          input.Notes,
+		Completed:      input.Completed,
+	}
+	if input.Completed {
+		now := time.Now()
+		model.CompletedAt = &now
+	}
+	if err := r.query(ctx).Create(&model).Error; err != nil {
 		return domain.Task{}, mapError(err)
 	}
-	return r.taskByID(ctx, principal.OrganizationID, id)
+	return r.taskByID(ctx, principal.OrganizationID, model.ID)
 }
 
 func (r *Repository) UpdateTask(ctx context.Context, principal domain.Principal, id string, input domain.TaskInput) (domain.Task, error) {
-	var assigneeID any
+	updates := map[string]any{"updated_at": time.Now()}
+	if input.Title != "" {
+		updates["title"] = input.Title
+	}
+	if input.Company != "" {
+		updates["company"] = input.Company
+	}
+	if input.Date != "" {
+		dueDate, err := time.Parse("2006-01-02", input.Date)
+		if err != nil {
+			return domain.Task{}, domain.ErrInvalidInput
+		}
+		updates["due_date"] = dueDate
+	}
+	if input.Time != "" {
+		updates["due_time"] = input.Time
+	}
+	if input.Type != "" {
+		updates["type"] = input.Type
+	}
+	if input.Priority != "" {
+		updates["priority"] = input.Priority
+	}
+	if input.Notes != "" {
+		updates["notes"] = input.Notes
+	}
 	if input.AssigneeID != "" || input.Assignee != "" {
-		resolved, err := r.resolveAssignee(ctx, principal, input.AssigneeID, input.Assignee)
+		assigneeID, err := r.resolveAssignee(ctx, principal, input.AssigneeID, input.Assignee)
 		if err != nil {
 			return domain.Task{}, err
 		}
-		assigneeID = resolved
+		updates["assignee_id"] = assigneeID
 	}
-	tag, err := r.pool.Exec(ctx, `
-		UPDATE tasks SET
-		    title=COALESCE(NULLIF($1,''),title),
-		    company=COALESCE(NULLIF($2,''),company),
-		    due_date=COALESCE(NULLIF($3,'')::date,due_date),
-		    due_time=COALESCE(NULLIF($4,'')::time,due_time),
-		    type=COALESCE(NULLIF($5,''),type),
-		    priority=COALESCE(NULLIF($6,''),priority),
-		    notes=CASE WHEN $7='' THEN notes ELSE $7 END,
-		    assignee_id=COALESCE($8::uuid,assignee_id),
-		    updated_at=now()
-		WHERE id=$9 AND organization_id=$10 AND deleted_at IS NULL`,
-		input.Title, input.Company, input.Date, input.Time, input.Type, input.Priority,
-		input.Notes, assigneeID, id, principal.OrganizationID,
-	)
-	if err != nil {
-		return domain.Task{}, mapError(err)
+	result := r.query(ctx).Model(&taskModel{}).
+		Where("id = ? AND organization_id = ? AND deleted_at IS NULL", id, principal.OrganizationID).
+		Updates(updates)
+	if result.Error != nil {
+		return domain.Task{}, mapError(result.Error)
 	}
-	if tag.RowsAffected() == 0 {
+	if result.RowsAffected == 0 {
 		return domain.Task{}, domain.ErrNotFound
 	}
 	return r.taskByID(ctx, principal.OrganizationID, id)
 }
 
 func (r *Repository) ToggleTask(ctx context.Context, principal domain.Principal, id string, completed bool) error {
-	tag, err := r.pool.Exec(ctx, `
-		UPDATE tasks SET completed=$1,completed_at=CASE WHEN $1 THEN now() ELSE NULL END,updated_at=now()
-		WHERE id=$2 AND organization_id=$3 AND deleted_at IS NULL`,
-		completed, id, principal.OrganizationID,
-	)
-	if err != nil {
-		return mapError(err)
+	var completedAt any
+	if completed {
+		completedAt = time.Now()
 	}
-	if tag.RowsAffected() == 0 {
+	result := r.query(ctx).Model(&taskModel{}).
+		Where("id = ? AND organization_id = ? AND deleted_at IS NULL", id, principal.OrganizationID).
+		Updates(map[string]any{
+			"completed":    completed,
+			"completed_at": completedAt,
+			"updated_at":   time.Now(),
+		})
+	if result.Error != nil {
+		return mapError(result.Error)
+	}
+	if result.RowsAffected == 0 {
 		return domain.ErrNotFound
 	}
 	return nil
 }
 
 func (r *Repository) DeleteTask(ctx context.Context, principal domain.Principal, id string) error {
-	tag, err := r.pool.Exec(ctx, `
-		UPDATE tasks SET deleted_at=now(),updated_at=now()
-		WHERE id=$1 AND organization_id=$2 AND deleted_at IS NULL`,
-		id, principal.OrganizationID,
-	)
-	if err != nil {
-		return mapError(err)
+	now := time.Now()
+	result := r.query(ctx).Model(&taskModel{}).
+		Where("id = ? AND organization_id = ? AND deleted_at IS NULL", id, principal.OrganizationID).
+		Updates(map[string]any{"deleted_at": now, "updated_at": now})
+	if result.Error != nil {
+		return mapError(result.Error)
 	}
-	if tag.RowsAffected() == 0 {
+	if result.RowsAffected == 0 {
 		return domain.ErrNotFound
 	}
 	return nil
 }
 
 func (r *Repository) taskByID(ctx context.Context, organizationID, id string) (domain.Task, error) {
-	task, err := scanTask(r.pool.QueryRow(ctx, `
-		SELECT t.id,t.organization_id,t.title,t.company,to_char(t.due_time,'HH24:MI'),
-		       to_char(t.due_date,'YYYY-MM-DD'),t.type,t.completed,t.notes,t.priority,
-		       COALESCE(trim(u.first_name || ' ' || u.last_name),''),
-		       COALESCE(u.id::text,''),t.created_at,t.updated_at
-		FROM tasks t LEFT JOIN users u ON u.id=t.assignee_id AND u.organization_id=t.organization_id
-		WHERE t.id=$1 AND t.organization_id=$2 AND t.deleted_at IS NULL`,
-		id, organizationID,
-	), time.Now().In(r.location))
+	row := r.query(ctx).
+		Table("tasks AS t").
+		Select(taskSelect).
+		Joins("LEFT JOIN users u ON u.id = t.assignee_id AND u.organization_id = t.organization_id").
+		Where("t.id = ? AND t.organization_id = ? AND t.deleted_at IS NULL", id, organizationID).
+		Row()
+	task, err := scanTask(row, time.Now().In(r.location))
 	return task, mapError(err)
 }
 
@@ -176,26 +198,18 @@ func (r *Repository) resolveAssignee(ctx context.Context, principal domain.Princ
 	if id == "" && name == "" {
 		return principal.UserID, nil
 	}
-	var resolved string
-	var err error
+	var user userModel
+	query := r.query(ctx).Select("id").
+		Where("organization_id = ? AND revoked_at IS NULL", principal.OrganizationID)
 	if id != "" {
-		err = r.pool.QueryRow(ctx, `
-			SELECT id FROM users
-			WHERE id=$1 AND organization_id=$2 AND revoked_at IS NULL`,
-			id, principal.OrganizationID,
-		).Scan(&resolved)
+		query = query.Where("id = ?", id)
 	} else {
-		err = r.pool.QueryRow(ctx, `
-			SELECT id FROM users
-			WHERE organization_id=$1 AND lower(trim(first_name || ' ' || last_name))=lower($2)
-			  AND revoked_at IS NULL LIMIT 1`,
-			principal.OrganizationID, name,
-		).Scan(&resolved)
+		query = query.Where("lower(trim(first_name || ' ' || last_name)) = lower(?)", name)
 	}
-	if err != nil {
+	if err := query.First(&user).Error; err != nil {
 		return "", mapError(err)
 	}
-	return resolved, nil
+	return user.ID, nil
 }
 
 func dayStart(value time.Time) time.Time {

@@ -20,7 +20,7 @@ func (s *Service) DashboardStats(ctx context.Context, principal domain.Principal
 	key := "crm:" + principal.OrganizationID + ":dashboard:stats"
 	err := s.cached(ctx, key, time.Minute, &result, func() error {
 		var err error
-		result, err = s.repo.DashboardStats(ctx, principal.OrganizationID, time.Now().In(s.location))
+		result, err = s.analytics.DashboardStats(ctx, principal.OrganizationID, time.Now().In(s.location))
 		return err
 	})
 	return result, err
@@ -31,7 +31,7 @@ func (s *Service) ConversionChart(ctx context.Context, principal domain.Principa
 	key := "crm:" + principal.OrganizationID + ":dashboard:conversion"
 	err := s.cached(ctx, key, time.Minute, &result, func() error {
 		var err error
-		result, err = s.repo.ConversionChart(ctx, principal.OrganizationID, time.Now().In(s.location))
+		result, err = s.analytics.ConversionChart(ctx, principal.OrganizationID, time.Now().In(s.location))
 		return err
 	})
 	return result, err
@@ -44,7 +44,7 @@ func (s *Service) Activities(ctx context.Context, principal domain.Principal, li
 	if limit > 100 {
 		limit = 100
 	}
-	return s.repo.Activities(ctx, principal.OrganizationID, limit)
+	return s.analytics.Activities(ctx, principal.OrganizationID, limit)
 }
 
 func (s *Service) Leaderboard(ctx context.Context, principal domain.Principal, period string) ([]domain.LeaderboardEntry, error) {
@@ -56,7 +56,7 @@ func (s *Service) Leaderboard(ctx context.Context, principal domain.Principal, p
 	key := fmt.Sprintf("crm:%s:reports:leaderboard:%s", principal.OrganizationID, month.Format("2006-01"))
 	err := s.cached(ctx, key, 5*time.Minute, &result, func() error {
 		var err error
-		result, err = s.repo.Leaderboard(ctx, principal.OrganizationID, month)
+		result, err = s.analytics.Leaderboard(ctx, principal.OrganizationID, month)
 		return err
 	})
 	return result, err
@@ -67,7 +67,7 @@ func (s *Service) LostReasons(ctx context.Context, principal domain.Principal) (
 	key := "crm:" + principal.OrganizationID + ":reports:lost-reasons"
 	err := s.cached(ctx, key, 5*time.Minute, &result, func() error {
 		var err error
-		result, err = s.repo.LostReasons(ctx, principal.OrganizationID)
+		result, err = s.analytics.LostReasons(ctx, principal.OrganizationID)
 		return err
 	})
 	return result, err
@@ -78,7 +78,7 @@ func (s *Service) Goals(ctx context.Context, principal domain.Principal) ([]doma
 	key := "crm:" + principal.OrganizationID + ":reports:goals"
 	err := s.cached(ctx, key, 5*time.Minute, &result, func() error {
 		var err error
-		result, err = s.repo.Goals(ctx, principal.OrganizationID)
+		result, err = s.analytics.Goals(ctx, principal.OrganizationID)
 		return err
 	})
 	return result, err
@@ -94,7 +94,7 @@ func (s *Service) Search(ctx context.Context, principal domain.Principal, query 
 	var result domain.SearchResult
 	err := s.cached(ctx, key, 30*time.Second, &result, func() error {
 		var err error
-		result, err = s.repo.Search(ctx, principal.OrganizationID, query)
+		result, err = s.search.Search(ctx, principal.OrganizationID, query)
 		return err
 	})
 	return result, err

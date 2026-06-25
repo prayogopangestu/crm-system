@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) listTasks(w nethttp.ResponseWriter, r *nethttp.Request) {
-	result, err := h.service.ListTasks(r.Context(), principal(r), r.URL.Query().Get("date"), r.URL.Query().Get("status"))
+	result, err := h.services.Tasks.ListTasks(r.Context(), principal(r), r.URL.Query().Get("date"), r.URL.Query().Get("status"))
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -22,7 +22,7 @@ func (h *Handler) createTask(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.CreateTask(r.Context(), principal(r), request)
+	result, err := h.services.Tasks.CreateTask(r.Context(), principal(r), request)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -35,7 +35,7 @@ func (h *Handler) updateTask(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	result, err := h.service.UpdateTask(r.Context(), principal(r), chi.URLParam(r, "id"), request)
+	result, err := h.services.Tasks.UpdateTask(r.Context(), principal(r), chi.URLParam(r, "id"), request)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -50,7 +50,7 @@ func (h *Handler) toggleTask(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	if err := h.service.ToggleTask(r.Context(), principal(r), chi.URLParam(r, "id"), request.Completed); err != nil {
+	if err := h.services.Tasks.ToggleTask(r.Context(), principal(r), chi.URLParam(r, "id"), request.Completed); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -58,7 +58,7 @@ func (h *Handler) toggleTask(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *Handler) deleteTask(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if err := h.service.DeleteTask(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
+	if err := h.services.Tasks.DeleteTask(r.Context(), principal(r), chi.URLParam(r, "id")); err != nil {
 		writeError(w, r, err)
 		return
 	}
