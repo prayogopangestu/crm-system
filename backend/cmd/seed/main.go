@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/prayogopangestu/crm-system/backend/internal/config"
-	"github.com/prayogopangestu/crm-system/backend/internal/domain"
-	postgresrepo "github.com/prayogopangestu/crm-system/backend/internal/repository/postgres"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/user"
+	"github.com/prayogopangestu/crm-system/backend/internal/platform/postgresx"
+	"github.com/prayogopangestu/crm-system/backend/internal/shared"
 	"github.com/prayogopangestu/crm-system/backend/pkg/database"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -28,8 +29,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	repo := postgresrepo.New(pool, location)
-	defer repo.Close()
+	store := postgresx.New(pool, location)
+	defer store.Close()
+	repository := user.NewRepository(store)
 
 	email := env("SEED_ADMIN_EMAIL", "admin@crm.local")
 	password := env("SEED_ADMIN_PASSWORD", "Admin123!")
@@ -37,14 +39,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	user, err := repo.Register(context.Background(), env("SEED_ORGANIZATION", "CRM Demo"), domain.User{
+	created, err := repository.Register(context.Background(), env("SEED_ORGANIZATION", "CRM Demo"), user.User{
 		FirstName: "Demo", LastName: "Admin", Email: strings.ToLower(email),
-		PasswordHash: string(hash), Role: domain.RoleAdmin,
+		PasswordHash: string(hash), Role: shared.RoleAdmin,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("demo tenant created: user=%s email=%s", user.ID, email)
+	log.Printf("demo tenant created: user=%s email=%s", created.ID, email)
 }
 
 func env(key, fallback string) string {

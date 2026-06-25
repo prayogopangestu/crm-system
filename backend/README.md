@@ -1,30 +1,51 @@
 # CRM Backend
 
-Backend Go untuk CRM Enterprise dengan clean architecture, GORM/PostgreSQL, Redis,
+Backend Go untuk CRM Enterprise dengan modular architecture, GORM/PostgreSQL, Redis,
 REST, gRPC, Telegram outbox, CSV/PDF export, dan isolasi multi-tenant.
 
-## Alur arsitektur
+## Struktur modular
 
 ```text
-HTTP/gRPC handler
-    -> kontrak use case per fitur
-    -> implementasi use case
-    -> kontrak repository per fitur
-    -> repository GORM
-    -> PostgreSQL
+internal/
+├── modules/
+│   ├── user/
+│   ├── contact/
+│   ├── deal/
+│   ├── task/
+│   ├── analytics/
+│   ├── pipeline/
+│   ├── integration/
+│   ├── notification/
+│   └── search/
+├── platform/
+│   └── postgresx/
+├── server/
+│   ├── httpserver/
+│   └── grpcserver/
+└── shared/
+    └── httpx/
 ```
 
-Pembagian utamanya:
+Setiap folder modul mengikuti pola yang sama:
 
-- `internal/domain`: entity dan kontrak repository. Tidak boleh mengimpor GORM.
-- `internal/usecase`: aturan bisnis dan kontrak use case per fitur.
-- `internal/delivery`: HTTP/gRPC; hanya bergantung pada kontrak use case.
-- `internal/repository/postgres`: model persistence dan query GORM.
-- `cmd/api`: composition root untuk memasangkan seluruh dependency.
+```text
+modules/deal/
+├── model.go             # entity dan request model
+├── service.go           # aturan bisnis dan repository interface
+├── repository_gorm.go   # implementasi persistence GORM
+├── http.go              # handler dan route HTTP
+└── service_test.go
+```
 
-Saat menambah fitur baru, buat domain model, repository interface, use case
-interface/implementation, repository GORM, lalu handler. Hindari menambahkan
-semua operasi ke satu interface atau handler global.
+Alur membaca satu fitur:
+
+```text
+http.go -> service.go -> repository_gorm.go -> PostgreSQL
+```
+
+Komponen lintas modul ditempatkan di `shared`, koneksi dan helper database di
+`platform`, sedangkan bootstrap HTTP/gRPC berada di `server`. `cmd/api` hanya
+bertugas memasangkan dependency.
 
 ## Menjalankan lokal
 

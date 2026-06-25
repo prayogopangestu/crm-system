@@ -13,12 +13,20 @@ import (
 
 	userv1 "github.com/prayogopangestu/crm-system/backend/api/protobuf/gen"
 	"github.com/prayogopangestu/crm-system/backend/internal/config"
-	grpcdelivery "github.com/prayogopangestu/crm-system/backend/internal/delivery/grpc"
-	httpdelivery "github.com/prayogopangestu/crm-system/backend/internal/delivery/http"
-	"github.com/prayogopangestu/crm-system/backend/internal/integration/telegram"
-	postgresrepo "github.com/prayogopangestu/crm-system/backend/internal/repository/postgres"
-	redisrepo "github.com/prayogopangestu/crm-system/backend/internal/repository/redis"
-	"github.com/prayogopangestu/crm-system/backend/internal/usecase"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/analytics"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/contact"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/deal"
+	integrationmodule "github.com/prayogopangestu/crm-system/backend/internal/modules/integration"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/notification"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/pipeline"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/search"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/task"
+	"github.com/prayogopangestu/crm-system/backend/internal/modules/user"
+	"github.com/prayogopangestu/crm-system/backend/internal/platform/postgresx"
+	"github.com/prayogopangestu/crm-system/backend/internal/platform/redisx"
+	"github.com/prayogopangestu/crm-system/backend/internal/server/grpcserver"
+	"github.com/prayogopangestu/crm-system/backend/internal/server/httpserver"
+	"github.com/prayogopangestu/crm-system/backend/internal/shared"
 	"github.com/prayogopangestu/crm-system/backend/pkg/auth"
 	"github.com/prayogopangestu/crm-system/backend/pkg/cryptoutil"
 	"github.com/prayogopangestu/crm-system/backend/pkg/database"
@@ -48,11 +56,12 @@ func main() {
 		log.Error("postgres startup failed", "error", err)
 		os.Exit(1)
 	}
-	repository := postgresrepo.New(pool, mustLocation(cfg.App.Timezone))
-	defer repository.Close()
+	location := mustLocation(cfg.App.Timezone)
+	store := postgresx.New(pool, location)
+	defer store.Close()
 
-	var cache *redisrepo.Cache
-	cache, err = redisrepo.New(cfg.Redis.URL)
+	var cache *redisx.Cache
+	cache, err = redisx.New(cfg.Redis.URL)
 	if err != nil {
 		log.Warn("redis configuration invalid; cache disabled", "error", err)
 		cache = nil
@@ -69,29 +78,40 @@ func main() {
 		log.Error("encryption setup failed", "error", err)
 		os.Exit(1)
 	}
-	telegramClient := telegram.New()
-	service := usecase.New(
-		usecase.Repositories{
-			Users: repository, Contacts: repository, Deals: repository, Tasks: repository,
-			Analytics: repository, Pipeline: repository, Integrations: repository,
-			Search: repository, Notifications: repository,
-		},
-		cache, tokenManager, cipher, telegramClient, log,
-		mustLocation(cfg.App.Timezone), cfg.App.BaseURL, cfg.Auth.BcryptCost,
-	)
-	worker := usecase.NewOutboxWorker(
-		repository, repository, cipher, telegramClient, log,
+	telegramClient := integrationmodule.NewTelegramClient()
+	cacheHelper := shared.CacheHelper{Cache: cache, Logger: log}
+
+	userService := user.NewService(user.NewRepository(store), cacheHelper, tokenManager, cfg.App.BaseURL, cfg.Auth.BcryptCost)
+	contactService := contact.NewService(contact.NewRepository(store), cacheHelper)
+	dealService := deal.NewService(deal.NewRepository(store), cacheHelper)
+	taskService := task.NewService(task.NewRepository(store), cacheHelper, location)
+	analyticsService := analytics.NewService(analytics.NewRepository(store), cacheHelper, location)
+	pipelineService := pipeline.NewService(pipeline.NewRepository(store), cacheHelper)
+	integrationRepository := integrationmodule.NewRepository(store)
+	integrationService := integrationmodule.NewService(integrationRepository, cipher, telegramClient)
+	notificationService := notification.NewService(notification.NewRepository(store))
+	searchService := search.NewService(search.NewRepository(store), cacheHelper)
+
+	worker := integrationmodule.NewWorker(
+		integrationRepository, cipher, telegramClient, log,
 		cfg.Telegram.WorkerInterval, cfg.Telegram.WorkerBatchSize,
 	)
 	go worker.Run(ctx)
 
-	handler := httpdelivery.NewHandler(httpdelivery.Services{
-		Users: service, Contacts: service, Deals: service, Tasks: service,
-		Analytics: service, Settings: service, Search: service, Notifications: service,
-	}, log)
+	modules := httpserver.Modules{
+		User:         user.NewHandler(userService, log),
+		Contact:      contact.NewHandler(contactService, log),
+		Deal:         deal.NewHandler(dealService, log),
+		Task:         task.NewHandler(taskService, log),
+		Analytics:    analytics.NewHandler(analyticsService, log),
+		Pipeline:     pipeline.NewHandler(pipelineService, log),
+		Integration:  integrationmodule.NewHandler(integrationService, log),
+		Notification: notification.NewHandler(notificationService, log),
+		Search:       search.NewHandler(searchService, log),
+	}
 	httpServer := &http.Server{
 		Addr:              cfg.HTTP.Addr,
-		Handler:           httpdelivery.Router(handler, tokenManager, cache, log, cfg.HTTP.AllowedOrigins, func() error { return repository.Ping(context.Background()) }),
+		Handler:           httpserver.Router(modules, tokenManager, cache, log, cfg.HTTP.AllowedOrigins, func() error { return store.Ping(context.Background()) }),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -103,8 +123,8 @@ func main() {
 		log.Error("grpc listen failed", "error", err)
 		os.Exit(1)
 	}
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(grpcdelivery.AuthInterceptor(tokenManager)))
-	userv1.RegisterUserServiceServer(grpcServer, grpcdelivery.NewUserServer(service))
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(grpcserver.AuthInterceptor(tokenManager)))
+	userv1.RegisterUserServiceServer(grpcServer, user.NewGRPCServer(userService))
 	if cfg.App.Env != "production" {
 		reflection.Register(grpcServer)
 	}
