@@ -52,3 +52,43 @@ Thumbs.db
 # TypeScript compiler build info
 *.tsbuildinfo
 next-env.d.ts
+
+# Go backend environment and local secrets
+/backend/.env
+/backend/.env.*
+!/backend/configs/.env.example
+/backend/configs/config.local.yaml
+/backend/configs/config.*.local.yaml
+
+# Go backend build output
+/backend/bin/
+/backend/dist/
+/backend/build/
+/backend/*.exe
+/backend/*.exe~
+/backend/*.dll
+/backend/*.so
+/backend/*.dylib
+/backend/*.test
+/backend/*.prof
+
+# Go backend caches and test coverage
+/backend/.gocache/
+/backend/.cache/
+/backend/coverage/
+/backend/coverage.out
+/backend/coverage.html
+/backend/*.coverprofile
+
+# Go backend runtime files
+/backend/tmp/
+/backend/logs/
+/backend/*.log
+/backend/*.pid
+
+# Local databases
+/backend/*.db
+/backend/*.db-shm
+/backend/*.db-wal
+/backend/*.sqlite
+/backend/*.sqlite3

@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package crm.user.v1;
+
+option go_package = "github.com/prayogopangestu/crm-system/backend/api/protobuf/gen;userv1";
+
+service UserService {
+  rpc GetProfile(GetProfileRequest) returns (User);
+  rpc UpdateProfile(UpdateProfileRequest) returns (User);
+  rpc ListTeam(ListTeamRequest) returns (ListTeamResponse);
+  rpc InviteMember(InviteMemberRequest) returns (InviteMemberResponse);
+  rpc RevokeMember(RevokeMemberRequest) returns (RevokeMemberResponse);
+}
+
+message GetProfileRequest {}
+message ListTeamRequest {}
+
+message User {
+  string id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string name = 4;
+  string email = 5;
+  string role = 6;
+  string status = 7;
+  string avatar_url = 8;
+  string initials = 9;
+}
+
+message UpdateProfileRequest {
+  string first_name = 1;
+  string last_name = 2;
+  string email = 3;
+}
+
+message ListTeamResponse {
+  repeated User users = 1;
+}
+
+message InviteMemberRequest {
+  string name = 1;
+  string email = 2;
+  string role = 3;
+}
+
+message InviteMemberResponse {
+  User user = 1;
+  string invite_url = 2;
+}
+
+message RevokeMemberRequest {
+  string user_id = 1;
+}
+
+message RevokeMemberResponse {
+  bool success = 1;
+}

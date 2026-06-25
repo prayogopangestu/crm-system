@@ -1,0 +1,536 @@
+openapi: 3.0.3
+info:
+  title: CRM Enterprise API
+  version: 1.0.0
+  description: REST API multi-tenant untuk frontend CRM Enterprise.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Profile
+  - name: Dashboard
+  - name: Contacts
+  - name: Deals
+  - name: Tasks
+  - name: Reports
+  - name: Team
+  - name: Pipeline
+  - name: Telegram
+  - name: Search
+  - name: Notifications
+paths:
+  /healthz:
+    get:
+      security: []
+      summary: Liveness
+      responses:
+        "200": {description: Process hidup}
+  /readyz:
+    get:
+      security: []
+      summary: Readiness
+      responses:
+        "200": {description: Database siap}
+        "503": {description: Database belum siap}
+  /api/auth/login:
+    post:
+      security: []
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoginRequest"}
+      responses:
+        "200":
+          description: Login berhasil
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LoginResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "429": {$ref: "#/components/responses/RateLimited"}
+  /api/auth/register:
+    post:
+      security: []
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RegisterRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/Success"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/auth/accept-invite:
+    post:
+      security: []
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: {type: string}
+                password: {type: string, minLength: 6}
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+        "410": {$ref: "#/components/responses/Error"}
+  /api/profile:
+    get:
+      tags: [Profile]
+      responses:
+        "200":
+          description: Profil aktif
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/User"}
+    put:
+      tags: [Profile]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ProfileRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/dashboard/stats:
+    get:
+      tags: [Dashboard]
+      responses:
+        "200": {description: KPI dashboard}
+  /api/dashboard/conversion-chart:
+    get:
+      tags: [Dashboard]
+      responses:
+        "200": {description: Konversi enam bulan}
+  /api/dashboard/activities:
+    get:
+      tags: [Dashboard]
+      parameters:
+        - {in: query, name: limit, schema: {type: integer, default: 5, maximum: 100}}
+      responses:
+        "200": {description: Aktivitas terbaru}
+  /api/contacts:
+    get:
+      tags: [Contacts]
+      parameters:
+        - {in: query, name: search, schema: {type: string}}
+        - {in: query, name: status, schema: {$ref: "#/components/schemas/ContactStatus"}}
+        - {in: query, name: page, schema: {type: integer, default: 1}}
+        - {in: query, name: limit, schema: {type: integer, default: 20, maximum: 100}}
+      responses:
+        "200": {description: Daftar kontak}
+    post:
+      tags: [Contacts]
+      requestBody: {$ref: "#/components/requestBodies/Contact"}
+      responses:
+        "201": {description: Kontak dibuat}
+  /api/contacts/{id}:
+    parameters:
+      - {$ref: "#/components/parameters/Id"}
+    put:
+      tags: [Contacts]
+      requestBody: {$ref: "#/components/requestBodies/Contact"}
+      responses:
+        "200": {description: Kontak diperbarui}
+    delete:
+      tags: [Contacts]
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/deals:
+    get:
+      tags: [Deals]
+      responses:
+        "200": {description: Daftar deal}
+    post:
+      tags: [Deals]
+      requestBody: {$ref: "#/components/requestBodies/Deal"}
+      responses:
+        "201": {description: Deal dibuat}
+  /api/deals/{id}:
+    parameters:
+      - {$ref: "#/components/parameters/Id"}
+    put:
+      tags: [Deals]
+      requestBody: {$ref: "#/components/requestBodies/Deal"}
+      responses:
+        "200": {description: Deal diperbarui}
+    delete:
+      tags: [Deals]
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/deals/{id}/stage:
+    parameters:
+      - {$ref: "#/components/parameters/Id"}
+    patch:
+      tags: [Deals]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stage]
+              properties:
+                stage: {type: string}
+                lostReason: {type: string, description: Wajib jika stage=lost}
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      parameters:
+        - {in: query, name: date, schema: {type: string, format: date}}
+        - {in: query, name: status, schema: {type: string, enum: [overdue, today, upcoming]}}
+      responses:
+        "200": {description: Daftar task}
+    post:
+      tags: [Tasks]
+      requestBody: {$ref: "#/components/requestBodies/Task"}
+      responses:
+        "201": {description: Task dibuat}
+  /api/tasks/{id}:
+    parameters:
+      - {$ref: "#/components/parameters/Id"}
+    put:
+      tags: [Tasks]
+      requestBody: {$ref: "#/components/requestBodies/Task"}
+      responses:
+        "200": {description: Task diperbarui}
+    delete:
+      tags: [Tasks]
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/tasks/{id}/toggle:
+    parameters:
+      - {$ref: "#/components/parameters/Id"}
+    patch:
+      tags: [Tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [completed]
+              properties:
+                completed: {type: boolean}
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/reports/leaderboard:
+    get:
+      tags: [Reports]
+      parameters:
+        - {in: query, name: period, schema: {type: string, enum: [Bulan Ini, Bulan Lalu]}}
+      responses:
+        "200": {description: Leaderboard}
+  /api/reports/lost-reasons:
+    get:
+      tags: [Reports]
+      responses:
+        "200": {description: Agregasi alasan kalah}
+  /api/reports/goals:
+    get:
+      tags: [Reports]
+      responses:
+        "200": {description: Target dan pencapaian}
+  /api/reports/export/csv:
+    get:
+      tags: [Reports]
+      responses:
+        "200":
+          description: CSV laporan
+          content:
+            text/csv:
+              schema: {type: string, format: binary}
+  /api/reports/export/pdf:
+    get:
+      tags: [Reports]
+      responses:
+        "200":
+          description: PDF laporan
+          content:
+            application/pdf:
+              schema: {type: string, format: binary}
+  /api/team:
+    get:
+      tags: [Team]
+      responses:
+        "200": {description: Daftar anggota}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /api/team/invite:
+    post:
+      tags: [Team]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, role]
+              properties:
+                name: {type: string}
+                email: {type: string, format: email}
+                role: {type: string, enum: [Admin, Staf Sales]}
+      responses:
+        "201": {description: Undangan dibuat}
+  /api/team/{id}:
+    parameters:
+      - {$ref: "#/components/parameters/Id"}
+    delete:
+      tags: [Team]
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/pipeline-stages:
+    get:
+      tags: [Pipeline]
+      responses:
+        "200": {description: Daftar stage}
+    post:
+      tags: [Pipeline]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+                color: {type: string}
+      responses:
+        "201": {description: Stage dibuat}
+  /api/pipeline-stages/reorder:
+    put:
+      tags: [Pipeline]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stagesOrder]
+              properties:
+                stagesOrder:
+                  type: array
+                  items: {type: string, format: uuid}
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/pipeline-stages/{id}:
+    parameters:
+      - {$ref: "#/components/parameters/Id"}
+    delete:
+      tags: [Pipeline]
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/integrations/telegram:
+    get:
+      tags: [Telegram]
+      responses:
+        "200": {description: Status integrasi}
+    put:
+      tags: [Telegram]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: {type: boolean}
+                botToken: {type: string, writeOnly: true}
+                chatId: {type: string}
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/integrations/telegram/test:
+    post:
+      tags: [Telegram]
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/search:
+    get:
+      tags: [Search]
+      parameters:
+        - {in: query, name: q, required: true, schema: {type: string, minLength: 2}}
+      responses:
+        "200": {description: Hasil pencarian lintas modul}
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      responses:
+        "200": {description: Daftar notifikasi}
+  /api/notifications/{id}/read:
+    parameters:
+      - {$ref: "#/components/parameters/Id"}
+    patch:
+      tags: [Notifications]
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+  /api/notifications/read-all:
+    patch:
+      tags: [Notifications]
+      responses:
+        "200": {$ref: "#/components/responses/Success"}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: {type: string, format: uuid}
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email}
+        password: {type: string, format: password}
+    LoginResponse:
+      type: object
+      properties:
+        token: {type: string}
+        user: {$ref: "#/components/schemas/User"}
+    RegisterRequest:
+      type: object
+      required: [companyName, email, password]
+      properties:
+        name: {type: string}
+        fullName: {type: string, description: Alias frontend untuk name}
+        companyName: {type: string}
+        email: {type: string, format: email}
+        password: {type: string, minLength: 6}
+    ProfileRequest:
+      type: object
+      required: [firstName, lastName, email]
+      properties:
+        firstName: {type: string}
+        lastName: {type: string}
+        email: {type: string, format: email}
+    User:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        firstName: {type: string}
+        lastName: {type: string}
+        name: {type: string}
+        email: {type: string, format: email}
+        role: {type: string, enum: [Admin, Staf Sales]}
+        status: {type: string, enum: [Aktif, Offline, Menunggu, Dicabut]}
+        avatarUrl: {type: string}
+        initials: {type: string}
+    ContactStatus:
+      type: string
+      enum: [Negosiasi, Menang, Prospek Awal, Proposal, Kalah, Kualifikasi]
+    ContactInput:
+      type: object
+      required: [name, email, company, status]
+      properties:
+        name: {type: string}
+        email: {type: string, format: email}
+        company: {type: string}
+        role: {type: string}
+        status: {$ref: "#/components/schemas/ContactStatus"}
+        avatarUrl: {type: string}
+    DealInput:
+      type: object
+      required: [title, company, value, priority, stage]
+      properties:
+        title: {type: string}
+        company: {type: string}
+        value: {type: integer, format: int64}
+        priority: {type: string, enum: [High, Medium, Low]}
+        stage: {type: string}
+        assigneeId: {type: string, format: uuid}
+        lostReason: {type: string}
+    TaskInput:
+      type: object
+      properties:
+        title: {type: string}
+        company: {type: string}
+        time: {type: string, example: "14:00"}
+        date: {type: string, format: date}
+        type: {type: string, enum: [Meeting, Call, Proposal, Other]}
+        priority: {type: string, enum: [Tinggi, Sedang, Rendah]}
+        assignee: {type: string}
+        assigneeId: {type: string, format: uuid}
+        notes: {type: string}
+        completed: {type: boolean}
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: {type: string}
+            message: {type: string}
+            fields: {type: object, additionalProperties: {type: string}}
+            requestId: {type: string}
+  requestBodies:
+    Contact:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ContactInput"}
+    Deal:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/DealInput"}
+    Task:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/TaskInput"}
+  responses:
+    Success:
+      description: Operasi berhasil
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success: {type: boolean}
+              message: {type: string}
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Unauthorized:
+      description: Token tidak ada/tidak valid
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Forbidden:
+      description: Role tidak diizinkan
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    NotFound:
+      description: Data tidak ditemukan
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    Conflict:
+      description: Konflik data
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+    RateLimited:
+      description: Batas request terlampaui
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
