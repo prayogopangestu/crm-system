@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/Input"
 import { Button } from "@/components/ui/Button"
 import { Checkbox } from "@/components/ui/Checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
+import { apiRequest } from "@/lib/api"
+import { TeamMember, UserProfile } from "@/types/crm"
 
 const step2Schema = z.object({
   type: z.enum(["Meeting", "Call", "Proposal", "Other"]),
@@ -22,6 +24,7 @@ type Step2Input = z.infer<typeof step2Schema>
 
 export function Step2Config() {
   const { formData, updateFormData, setStep } = useFormStore()
+  const [assignees, setAssignees] = useState<Array<{ id: string; name: string }>>([])
   
   const { register, control, handleSubmit, formState: { errors } } = useForm<Step2Input>({
     resolver: zodResolver(step2Schema),
@@ -33,6 +36,26 @@ export function Step2Config() {
       completedDirectly: formData.completedDirectly
     }
   })
+
+  useEffect(() => {
+    const loadAssignees = async () => {
+      try {
+        const members = await apiRequest<TeamMember[]>("/api/team")
+        setAssignees(members.map((member) => ({ id: member.id, name: member.name })))
+      } catch {
+        try {
+          const profile = await apiRequest<UserProfile>("/api/profile")
+          setAssignees([{ id: profile.id, name: profile.name }])
+        } catch {
+          setAssignees([])
+        }
+      }
+    }
+    const timer = window.setTimeout(() => {
+      void loadAssignees()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const onSubmit = (data: Step2Input) => {
     updateFormData(data)
@@ -128,9 +151,11 @@ export function Step2Config() {
                   <SelectValue placeholder="Pilih Penanggung Jawab" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Sarah Jenkins">Sarah Jenkins</SelectItem>
-                  <SelectItem value="Michael Kusuma">Michael Kusuma</SelectItem>
-                  <SelectItem value="Anita Larasati">Anita Larasati</SelectItem>
+                  {assignees.map((assignee) => (
+                    <SelectItem key={assignee.id} value={assignee.name}>
+                      {assignee.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}

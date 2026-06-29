@@ -20,7 +20,7 @@ type LoginInput = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
   const router = useRouter()
-  const { isLoading, login } = useAuthStore()
+  const { isLoading, error, setError, login } = useAuthStore()
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -31,15 +31,14 @@ export default function LoginPage() {
   })
 
   const onSubmit = (data: LoginInput) => {
-    login(() => {
+    setError(null)
+    login(data, () => {
       router.push("/")
     })
   }
 
-  const handleSocialLogin = (provider: string) => {
-    login(() => {
-      router.push("/")
-    })
+  const handleSocialLogin = () => {
+    setError("Login sosial belum tersambung ke backend.")
   }
 
   return (
@@ -52,6 +51,13 @@ export default function LoginPage() {
         <h2 className="text-2xl font-bold text-on-surface tracking-tight">CRM Enterprise</h2>
         <p className="text-xs text-on-surface-variant mt-1">Masuk untuk mengelola sales &amp; hubungan klien</p>
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-error-container text-on-error-container text-xs font-semibold flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">error</span>
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Login Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -114,7 +120,7 @@ export default function LoginPage() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => handleSocialLogin("Google")}
+          onClick={handleSocialLogin}
           className="flex items-center justify-center gap-2 text-xs py-2 font-semibold cursor-pointer"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -140,7 +146,7 @@ export default function LoginPage() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => handleSocialLogin("Microsoft")}
+          onClick={handleSocialLogin}
           className="flex items-center justify-center gap-2 text-xs py-2 font-semibold cursor-pointer"
         >
           <svg className="w-4 h-4" viewBox="0 0 23 23">

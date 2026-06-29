@@ -2,19 +2,30 @@
 
 import React, { useEffect, useState } from "react"
 import { Button } from "@/components/ui/Button"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/Avatar"
 import { useSidebar } from "@/context/SidebarContext"
 import { useTheme } from "next-themes"
 import { Sun, Moon } from "lucide-react"
 import { toast } from "sonner"
+import { useAuthStore } from "@/hooks/useAuthStore"
 
 export function Header() {
   const { toggleCollapse, toggleMobile, isCollapsed } = useSidebar()
   const { theme, setTheme } = useTheme()
+  const { user } = useAuthStore()
   const [mounted, setMounted] = useState(false)
 
+  const name = user?.name || "User CRM"
+  const initials = name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase()
+
   useEffect(() => {
-    setMounted(true)
+    const timer = window.setTimeout(() => setMounted(true), 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   const handleToggle = () => {
@@ -100,18 +111,14 @@ export function Header() {
         {/* User Card */}
         <div className="flex items-center space-x-3 border-l border-outline-variant pl-4 cursor-pointer group select-none">
           <Avatar className="h-8 w-8 ring-2 ring-transparent group-hover:ring-primary transition-all">
-            <AvatarImage
-              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100"
-              alt="Sarah Jenkins"
-            />
-            <AvatarFallback>SJ</AvatarFallback>
+            <AvatarFallback>{initials}</AvatarFallback>
           </Avatar>
           <div className="hidden lg:block text-left">
             <p className="font-label-md text-xs font-semibold text-on-surface group-hover:text-primary transition-colors leading-none">
-              Sarah Jenkins
+              {name}
             </p>
             <p className="font-label-sm text-[10px] text-on-surface-variant leading-none mt-1">
-              Admin
+              {user?.role || "-"}
             </p>
           </div>
         </div>

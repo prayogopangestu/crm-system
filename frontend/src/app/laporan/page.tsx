@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/Button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar"
-import { leaderboardData, performanceGoals } from "@/lib/mockData"
+import { apiDownload, apiRequest, queryString } from "@/lib/api"
+import { LeaderboardEntry, LostReason, PerformanceGoal } from "@/types/crm"
 import {
   PieChart,
   Pie,
@@ -16,13 +17,12 @@ import {
 } from "recharts"
 import { toast } from "sonner"
 
-const pieData = [
-  { name: "Harga Terlalu Tinggi", value: 56, percentage: 45, color: "#6366f1" },
-  { name: "Kalah dari Kompetitor", value: 37, percentage: 30, color: "#f59e0b" },
-  { name: "Fitur Kurang Lengkap", value: 31, percentage: 25, color: "#10b981" },
-]
+interface PieTooltipProps {
+  active?: boolean
+  payload?: Array<{ payload: LostReason }>
+}
 
-const CustomPieTooltip = ({ active, payload }: any) => {
+const CustomPieTooltip = ({ active, payload }: PieTooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
@@ -39,19 +39,58 @@ const CustomPieTooltip = ({ active, payload }: any) => {
 
 export default function LaporanPage() {
   const [mounted, setMounted] = useState(false)
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([])
+  const [pieData, setPieData] = useState<LostReason[]>([])
+  const [performanceGoals, setPerformanceGoals] = useState<PerformanceGoal[]>([])
+  const [error, setError] = useState<string | null>(null)
   useEffect(() => {
-    setMounted(true)
+    const timer = window.setTimeout(() => setMounted(true), 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
   const [period, setPeriod] = useState("Bulan Ini")
 
-  const handleExportCSV = () => {
-    toast.success("Data Laporan Performa telah diekspor sebagai CSV!")
+  useEffect(() => {
+    const loadReports = async () => {
+      setError(null)
+      try {
+        const [leaderboard, lostReasons, goals] = await Promise.all([
+          apiRequest<LeaderboardEntry[]>(`/api/reports/leaderboard${queryString({ period })}`),
+          apiRequest<LostReason[]>("/api/reports/lost-reasons"),
+          apiRequest<PerformanceGoal[]>("/api/reports/goals"),
+        ])
+        setLeaderboardData(leaderboard)
+        setPieData(lostReasons)
+        setPerformanceGoals(goals)
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "Gagal memuat laporan")
+      }
+    }
+    const timer = window.setTimeout(() => {
+      void loadReports()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [period])
+
+  const handleExportCSV = async () => {
+    try {
+      await apiDownload("/api/reports/export/csv", "crm-report.csv")
+      toast.success("Data laporan diekspor sebagai CSV")
+    } catch {
+      toast.error("Export CSV gagal")
+    }
   }
 
-  const handleExportPDF = () => {
-    toast.info("Dokumen Analisis Penjualan sedang diunduh dalam format PDF!")
+  const handleExportPDF = async () => {
+    try {
+      await apiDownload("/api/reports/export/pdf", "crm-report.pdf")
+      toast.success("Dokumen laporan diunduh sebagai PDF")
+    } catch {
+      toast.error("Export PDF gagal")
+    }
   }
+
+  const totalLostDeals = pieData.reduce((sum, item) => sum + item.value, 0)
 
   return (
     <div className="p-gutter max-w-container-max-width mx-auto w-full">
@@ -85,6 +124,12 @@ export default function LaporanPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-xs font-semibold text-on-error-container">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         {/* Leaderboard (Team Performance) */}
         <Card className="lg:col-span-2 p-4 flex flex-col">
@@ -109,6 +154,11 @@ export default function LaporanPage() {
           </div>
           <div className="flex-1">
             <ul className="flex flex-col gap-4">
+              {leaderboardData.length === 0 && (
+                <li className="p-4 text-center text-xs text-on-surface-variant">
+                  Belum ada data performa.
+                </li>
+              )}
               {leaderboardData.map((rep) => (
                 <li
                   key={rep.rank}
@@ -174,7 +224,7 @@ export default function LaporanPage() {
                 </ResponsiveContainer>
                 {/* Center Text inside Donut Chart */}
                 <div className="absolute flex flex-col items-center justify-center pointer-events-none">
-                  <span className="font-headline-md text-xl font-bold text-on-surface leading-none">124</span>
+                  <span className="font-headline-md text-xl font-bold text-on-surface leading-none">{totalLostDeals}</span>
                   <span className="text-[8px] text-on-surface-variant font-bold uppercase tracking-wider mt-1">Total Deals</span>
                 </div>
               </div>
@@ -186,6 +236,9 @@ export default function LaporanPage() {
 
             {/* Legends */}
             <div className="w-full mt-6 flex flex-col gap-2.5">
+              {pieData.length === 0 && (
+                <div className="text-xs text-on-surface-variant text-center">Belum ada deal lost.</div>
+              )}
               {pieData.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between text-xs font-semibold">
                   <div className="flex items-center gap-2">
@@ -215,6 +268,13 @@ export default function LaporanPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {performanceGoals.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8 text-on-surface-variant/70">
+                  Belum ada target performa.
+                </TableCell>
+              </TableRow>
+            )}
             {performanceGoals.map((goal, idx) => {
               const isAchieved = goal.percentage >= 100
               return (

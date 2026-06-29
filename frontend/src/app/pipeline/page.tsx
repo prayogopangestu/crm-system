@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -9,29 +9,16 @@ import { Button } from "@/components/ui/Button"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar"
 import { Input } from "@/components/ui/Input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
-import { Deal } from "@/lib/mockData"
+import { DealPriority, DealStage, PipelineStage } from "@/types/crm"
 import { usePipelineStore } from "@/hooks/usePipelineStore"
-
-interface KanbanStage {
-  id: Deal['stage']
-  title: string
-  color: string
-}
-
-const stages: KanbanStage[] = [
-  { id: "lead", title: "Lead Masuk", color: "border-primary" },
-  { id: "contacted", title: "Dihubungi", color: "border-secondary" },
-  { id: "meeting", title: "Meeting", color: "border-tertiary-container" },
-  { id: "negotiation", title: "Negosiasi", color: "border-primary-container" },
-  { id: "won", title: "Deal Won", color: "border-surface-tint" }
-]
+import { toast } from "sonner"
 
 const dealSchema = z.object({
   title: z.string().min(2, "Nama perusahaan/klien wajib diisi"),
   company: z.string().min(2, "Deskripsi proyek/deal wajib diisi"),
   value: z.string().min(1, "Nilai deal wajib diisi").refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, "Nilai deal harus berupa angka positif"),
   priority: z.enum(["High", "Medium", "Low"]),
-  stage: z.enum(["lead", "contacted", "meeting", "negotiation", "won"])
+  stage: z.enum(["lead", "contacted", "meeting", "negotiation", "won", "lost"])
 })
 
 type DealInput = z.infer<typeof dealSchema>
@@ -39,10 +26,15 @@ type DealInput = z.infer<typeof dealSchema>
 export default function PipelinePage() {
   const {
     deals,
+    stages,
     showAddDealModal,
     draggingId,
+    isLoading,
+    error,
     setShowAddDealModal,
     setDraggingId,
+    loadDeals,
+    loadStages,
     addDeal,
     updateDealStage
   } = usePipelineStore()
@@ -58,6 +50,11 @@ export default function PipelinePage() {
     }
   })
 
+  useEffect(() => {
+    void loadStages()
+    void loadDeals()
+  }, [loadDeals, loadStages])
+
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggingId(id)
     e.dataTransfer.setData("text/plain", id)
@@ -67,38 +64,50 @@ export default function PipelinePage() {
     e.preventDefault()
   }
 
-  const handleDrop = (e: React.DragEvent, targetStage: Deal['stage']) => {
+  const handleDrop = (e: React.DragEvent, targetStage: DealStage) => {
     e.preventDefault()
     const dealId = e.dataTransfer.getData("text/plain") || draggingId
     if (!dealId) return
 
-    updateDealStage(dealId, targetStage)
+    updateDealStage(dealId, targetStage).catch(() => {
+      toast.error("Deal gagal dipindahkan")
+    })
     setDraggingId(null)
   }
 
-  const onSubmit = (data: DealInput) => {
-    const newDeal: Deal = {
-      id: "deal_" + Date.now().toString(),
-      title: data.title,
-      company: data.company,
-      value: parseFloat(data.value) || 0,
-      priority: data.priority,
-      stage: data.stage,
-      assignee: {
-        name: "Sarah",
-        avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100"
-      }
+  const onSubmit = async (data: DealInput) => {
+    try {
+      await addDeal({
+        title: data.title,
+        company: data.company,
+        value: parseFloat(data.value) || 0,
+        priority: data.priority,
+        stage: data.stage,
+      })
+      toast.success("Deal berhasil disimpan")
+      reset()
+    } catch {
+      toast.error("Deal gagal disimpan")
     }
-
-    addDeal(newDeal)
-    reset()
   }
 
   // Priority color badges
-  const priorityBadges: Record<Deal['priority'], string> = {
+  const priorityBadges: Record<DealPriority, string> = {
     High: "bg-error-container text-on-error-container",
     Medium: "bg-secondary-container text-on-secondary-container",
     Low: "bg-surface-variant text-on-surface-variant"
+  }
+
+  const borderClass = (stage: PipelineStage) => {
+    const colors: Record<string, string> = {
+      lead: "border-primary",
+      contacted: "border-secondary",
+      meeting: "border-tertiary-container",
+      negotiation: "border-primary-container",
+      won: "border-surface-tint",
+      lost: "border-error",
+    }
+    return colors[stage.key] || "border-outline-variant"
   }
 
   return (
@@ -125,27 +134,36 @@ export default function PipelinePage() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-xs font-semibold text-on-error-container">
+          {error}
+        </div>
+      )}
+
       {/* Kanban Board Container */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden kanban-scroll pb-4 -mx-gutter px-gutter">
         <div className="flex gap-6 h-full min-w-max items-start">
+          {isLoading && deals.length === 0 && stages.length === 0 && (
+            <div className="text-sm text-on-surface-variant">Memuat pipeline dari backend...</div>
+          )}
           {stages.map(stage => {
-            const stageDeals = deals.filter(d => d.stage === stage.id)
+            const stageDeals = deals.filter(d => d.stage === stage.key)
             const totalValue = stageDeals.reduce((sum, d) => sum + d.value, 0)
 
             return (
               <div
                 key={stage.id}
                 onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, stage.id)}
+                onDrop={(e) => handleDrop(e, stage.key)}
                 className={`w-[300px] flex flex-col max-h-full bg-surface-container-lowest border border-outline-variant/50 rounded-xl shrink-0 transition-all ${
                   draggingId ? "bg-surface-container-low/20" : ""
                 }`}
               >
                 {/* Stage Header */}
-                <div className={`p-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface/50 rounded-t-xl border-t-4 ${stage.color}`}>
+                <div className={`p-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface/50 rounded-t-xl border-t-4 ${borderClass(stage)}`}>
                   <div className="flex items-center gap-2">
                     <h3 className="font-label-md text-xs font-bold text-on-surface uppercase tracking-wider">
-                      {stage.title}
+                      {stage.name}
                     </h3>
                     <span className="bg-surface-variant text-on-surface-variant px-2 py-0.5 rounded text-xs font-bold">
                       {stageDeals.length}
@@ -191,9 +209,9 @@ export default function PipelinePage() {
                           <span className="text-xs font-bold text-primary">
                             Rp {deal.value.toLocaleString("id-ID")}
                           </span>
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={deal.assignee.avatarUrl} alt={deal.assignee.name} />
-                            <AvatarFallback>{deal.assignee.name[0]}</AvatarFallback>
+                        <Avatar className="h-6 w-6">
+                          <AvatarImage src={deal.assignee.avatarUrl} alt={deal.assignee.name} />
+                            <AvatarFallback>{deal.assignee.name?.[0] || "?"}</AvatarFallback>
                           </Avatar>
                         </div>
                       </div>
@@ -313,6 +331,7 @@ export default function PipelinePage() {
                         <SelectItem value="meeting">Meeting</SelectItem>
                         <SelectItem value="negotiation">Negosiasi</SelectItem>
                         <SelectItem value="won">Deal Won</SelectItem>
+                        <SelectItem value="lost">Deal Lost</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
@@ -332,8 +351,8 @@ export default function PipelinePage() {
                 >
                   Batal
                 </Button>
-                <Button type="submit" variant="default">
-                  Simpan Deal
+                <Button type="submit" variant="default" disabled={isLoading}>
+                  {isLoading ? "Menyimpan..." : "Simpan Deal"}
                 </Button>
               </div>
             </form>

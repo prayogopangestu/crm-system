@@ -1,10 +1,9 @@
 "use client"
 
-import React from "react"
+import React, { useEffect } from "react"
 import { Card } from "@/components/ui/Card"
-import { Button } from "@/components/ui/Button"
 import { Checkbox } from "@/components/ui/Checkbox"
-import { Task } from "@/lib/mockData"
+import { Task } from "@/types/crm"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
@@ -20,6 +19,8 @@ export default function TugasPage() {
     selectedDate,
     expandedTaskId,
     step,
+    error,
+    loadTasks,
     toggleTask,
     toggleExpand,
     setCurrentMonthDate,
@@ -27,6 +28,10 @@ export default function TugasPage() {
     addTask,
     resetForm
   } = useTaskStore()
+
+  useEffect(() => {
+    void loadTasks()
+  }, [loadTasks])
 
   const indonesianMonths = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -57,22 +62,6 @@ export default function TugasPage() {
   }
 
   const renderTaskDetails = (task: Task) => {
-    // Read stored fields if they exist, otherwise fall back to type-based generation
-    const priority = (task as any).priority || 
-      (task.status === "overdue" ? "Tinggi (Terlewat)" : task.type === "Proposal" || task.type === "Meeting" ? "Tinggi" : "Sedang")
-    
-    const assignee = (task as any).assignee || 
-      (task.type === "Call" ? "Michael Kusuma" : "Sarah Jenkins")
-    
-    const notes = (task as any).notes || 
-      (task.type === "Call" 
-        ? `Hubungi klien terkait dengan detail ${task.company}. Pastikan untuk menanyakan jadwal meeting selanjutnya dan perbarui status di CRM.`
-        : task.type === "Meeting"
-          ? `Meeting evaluasi dengan pihak ${task.company}. Siapkan bahan presentasi produk dan demo sistem ter-update.`
-          : task.type === "Proposal"
-            ? `Kirimkan revisi proposal penawaran harga Q3 untuk ${task.company}. Pastikan nominal diskon sudah sesuai dengan persetujuan pimpinan.`
-            : `Tugas operasional umum terkait ${task.company}. Lakukan follow-up rutin dan dokumentasikan hasilnya.`)
-
     return (
       <AnimatePresence>
         {expandedTaskId === task.id && (
@@ -101,25 +90,25 @@ export default function TugasPage() {
                   <span className="text-slate-400 dark:text-slate-500 font-medium block">Prioritas</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1 mt-0.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                      priority.includes("Tinggi") || priority.includes("Urgent")
+                      task.priority.includes("Tinggi")
                         ? "bg-red-500"
-                        : priority.includes("Rendah")
+                        : task.priority.includes("Rendah")
                           ? "bg-slate-400 dark:bg-slate-500"
                           : "bg-amber-500"
                     }`}></span>
-                    {priority}
+                    {task.priority}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400 dark:text-slate-500 font-medium block">Penanggung Jawab</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-300 mt-0.5 block">{assignee}</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300 mt-0.5 block">{task.assignee || "-"}</span>
                 </div>
               </div>
               
               <div>
                 <span className="text-slate-400 dark:text-slate-500 font-medium block">Catatan Detail</span>
                 <p className="mt-1 text-slate-600 dark:text-slate-400 leading-relaxed font-normal normal-case">
-                  {notes}
+                  {task.notes || "Tidak ada catatan."}
                 </p>
               </div>
             </div>
@@ -129,29 +118,8 @@ export default function TugasPage() {
     )
   }
 
-  // Helper to determine the actual date of a task (mocking relative to current date)
   const getTaskDate = (task: Task): Date => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    if (task.status === "today") {
-      return today
-    } else if (task.status === "overdue") {
-      const yesterday = new Date(today)
-      yesterday.setDate(today.getDate() - 1)
-      return yesterday
-    } else if (task.status === "upcoming") {
-      const tomorrow = new Date(today)
-      tomorrow.setDate(today.getDate() + 1)
-      return tomorrow
-    }
-    
-    // Fallback for custom added dates
-    if ((task as any).customDate) {
-      return new Date((task as any).customDate)
-    }
-    
-    return today
+    return new Date(`${task.date}T00:00:00`)
   }
 
   const isSameDay = (d1: Date, d2: Date) => 
@@ -160,49 +128,34 @@ export default function TugasPage() {
     d1.getFullYear() === d2.getFullYear()
 
   // Save new logged activity as a completed task in state from Multi-step form
-  const handleSaveMultiStepTask = (data: TaskFormData) => {
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    
-    const targetDate = new Date(selectedDate)
-    targetDate.setHours(0, 0, 0, 0)
-    
-    let taskStatus: "overdue" | "today" | "upcoming" = "today"
-    if (targetDate.getTime() < todayStart.getTime()) {
-      taskStatus = "overdue"
-    } else if (targetDate.getTime() > todayStart.getTime()) {
-      taskStatus = "upcoming"
+  const formatDate = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  }
+
+  const handleSaveMultiStepTask = async (data: TaskFormData) => {
+    try {
+      await addTask({
+        title: data.title,
+        company: data.relatedTo,
+        time: data.time,
+        date: formatDate(selectedDate),
+        type: data.type,
+        priority: data.priority,
+        assignee: data.assignee,
+        notes: data.notes,
+        completed: data.completedDirectly,
+      })
+
+      toast.success("Tugas berhasil ditambahkan!", {
+        description: `Tugas: "${data.title}" | Klien: ${data.relatedTo} untuk tanggal ${selectedDate.getDate()} ${indonesianMonths[selectedDate.getMonth()]}`,
+      })
+      resetForm()
+    } catch {
+      toast.error("Tugas gagal disimpan")
     }
-
-    // Format the time text displayed in the task card list
-    let timeText = data.time
-    if (taskStatus === "overdue") {
-      timeText = `Terlewat, ${data.time}`
-    } else if (taskStatus === "upcoming") {
-      timeText = `Besok, ${data.time}`
-    }
-
-    const newLoggedTask: Task & { customDate?: string; priority?: string; assignee?: string; notes?: string } = {
-      id: `t-logged-${Date.now()}`,
-      title: data.title,
-      company: data.relatedTo,
-      time: timeText,
-      type: data.type,
-      status: taskStatus,
-      completed: data.completedDirectly,
-      customDate: selectedDate.toISOString(),
-      priority: data.priority,
-      assignee: data.assignee,
-      notes: data.notes
-    }
-
-    addTask(newLoggedTask)
-
-    toast.success("Tugas berhasil ditambahkan!", {
-      description: `Tugas: "${data.title}" | Klien: ${data.relatedTo} untuk tanggal ${selectedDate.getDate()} ${indonesianMonths[selectedDate.getMonth()]}`,
-    })
-    
-    resetForm()
   }
 
   // Filter tasks dynamically
@@ -269,6 +222,12 @@ export default function TugasPage() {
     <div className="p-gutter max-w-container-max-width mx-auto w-full flex flex-col gap-gutter lg:flex-row">
       {/* Left Column: Calendar & Quick Log */}
       <div className="flex-1 flex flex-col gap-gutter min-w-[60%] animate-fade-in-up">
+        {error && (
+          <div className="rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-xs font-semibold text-on-error-container">
+            {error}
+          </div>
+        )}
+
         {/* Page Title & Navigation */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
           <div>
@@ -454,7 +413,7 @@ export default function TugasPage() {
                       <div onClick={(e) => e.stopPropagation()}>
                         <Checkbox 
                           checked={task.completed} 
-                          onChange={() => toggleTask(task.id)} 
+                          onChange={() => void toggleTask(task.id)} 
                           className="mt-1 cursor-pointer" 
                         />
                       </div>
@@ -529,7 +488,7 @@ export default function TugasPage() {
                             <Checkbox 
                               checked={task.completed} 
                               onChange={() => {
-                                toggleTask(task.id)
+                                void toggleTask(task.id)
                                 if (!task.completed) {
                                   toast.success("Tugas diselesaikan!", {
                                     description: `Tugas "${task.title}" telah diselesaikan.`,
@@ -572,7 +531,7 @@ export default function TugasPage() {
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    toggleTask(task.id)
+                                    void toggleTask(task.id)
                                     toast.success("Tugas diselesaikan!", {
                                       description: `Tugas "${task.title}" telah diselesaikan.`,
                                     })
@@ -612,7 +571,7 @@ export default function TugasPage() {
                   >
                     <div className="flex gap-3 w-full">
                       <div onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={task.completed} onChange={() => toggleTask(task.id)} className="mt-1" />
+                        <Checkbox checked={task.completed} onChange={() => void toggleTask(task.id)} className="mt-1" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start gap-2">
@@ -655,7 +614,7 @@ export default function TugasPage() {
                   >
                     <div className="flex gap-3 w-full">
                       <div onClick={(e) => e.stopPropagation()}>
-                        <Checkbox checked={task.completed} onChange={() => toggleTask(task.id)} className="mt-1" />
+                        <Checkbox checked={task.completed} onChange={() => void toggleTask(task.id)} className="mt-1" />
                       </div>
                       <div className="flex-1">
                         <h4 className={`font-label-md text-sm text-on-surface font-semibold ${task.completed ? "line-through opacity-50" : ""}`}>

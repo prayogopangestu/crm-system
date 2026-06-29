@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/Input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar"
-import { Contact } from "@/lib/mockData"
+import { ContactStatus } from "@/types/crm"
 import { useContactStore } from "@/hooks/useContactStore"
+import { toast } from "sonner"
 
 const contactSchema = z.object({
   name: z.string().min(2, "Nama lengkap minimal harus 2 karakter"),
@@ -26,12 +27,16 @@ type ContactInput = z.infer<typeof contactSchema>
 export default function KontakPage() {
   const {
     contacts,
+    total,
     search,
     statusFilter,
+    isLoading,
+    error,
     showAddModal,
     setSearch,
     setStatusFilter,
     setShowAddModal,
+    loadContacts,
     addContact
   } = useContactStore()
 
@@ -46,6 +51,10 @@ export default function KontakPage() {
     }
   })
 
+  useEffect(() => {
+    void loadContacts()
+  }, [loadContacts, search, statusFilter])
+
   // Filter contacts
   const filteredContacts = contacts.filter((c) => {
     const matchesSearch =
@@ -59,7 +68,7 @@ export default function KontakPage() {
   })
 
   // Deal status colors
-  const statusBadges: Record<Contact['status'], string> = {
+  const statusBadges: Record<ContactStatus, string> = {
     "Negosiasi": "bg-tertiary-fixed text-on-tertiary-fixed-variant",
     "Menang": "bg-primary-fixed text-on-primary-fixed-variant",
     "Prospek Awal": "bg-surface-variant text-on-surface-variant",
@@ -68,27 +77,14 @@ export default function KontakPage() {
     "Kualifikasi": "bg-surface-container-high text-on-surface"
   }
 
-  const onSubmit = (data: ContactInput) => {
-    const initials = data.name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .substring(0, 2)
-      .toUpperCase()
-
-    const newContact: Contact = {
-      id: Date.now().toString(),
-      name: data.name,
-      email: data.email,
-      company: data.company,
-      role: data.role || "Staff",
-      status: data.status,
-      lastContacted: "Baru saja",
-      initials
+  const onSubmit = async (data: ContactInput) => {
+    try {
+      await addContact(data)
+      toast.success("Kontak berhasil disimpan")
+      reset()
+    } catch {
+      toast.error("Kontak gagal disimpan")
     }
-
-    addContact(newContact)
-    reset()
   }
 
   return (
@@ -112,6 +108,12 @@ export default function KontakPage() {
           Tambah Kontak
         </Button>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-xs font-semibold text-on-error-container">
+          {error}
+        </div>
+      )}
 
       {/* Filters & Search Row */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -161,7 +163,13 @@ export default function KontakPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredContacts.length === 0 ? (
+            {isLoading && contacts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-on-surface-variant/70">
+                  Memuat kontak dari backend...
+                </TableCell>
+              </TableRow>
+            ) : filteredContacts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-on-surface-variant/70">
                   Tidak ada kontak ditemukan.
@@ -210,7 +218,7 @@ export default function KontakPage() {
         {/* Pagination Footer */}
         <div className="bg-surface border-t border-outline-variant px-4 py-3 flex items-center justify-between">
           <span className="text-xs text-on-surface-variant font-medium">
-            Menampilkan {filteredContacts.length} dari {contacts.length} kontak
+            Menampilkan {filteredContacts.length} dari {total} kontak
           </span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
@@ -332,8 +340,8 @@ export default function KontakPage() {
                 >
                   Batal
                 </Button>
-                <Button type="submit" variant="default">
-                  Simpan Kontak
+                <Button type="submit" variant="default" disabled={isLoading}>
+                  {isLoading ? "Menyimpan..." : "Simpan Kontak"}
                 </Button>
               </div>
             </form>

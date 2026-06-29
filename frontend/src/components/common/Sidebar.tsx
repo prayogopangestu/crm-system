@@ -15,6 +15,7 @@ import {
   LogOut 
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAuthStore } from "@/hooks/useAuthStore"
 
 interface NavItem {
   name: string
@@ -36,11 +37,20 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname()
   const { isCollapsed, isMobileOpen, closeMobile } = useSidebar()
+  const { user, logout } = useAuthStore()
 
   const handleLogout = () => {
-    localStorage.removeItem("crm_logged_in")
+    logout(() => undefined)
     closeMobile()
   }
+
+  const name = user?.name || "User CRM"
+  const initials = name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase()
 
   return (
     <>
@@ -151,7 +161,7 @@ export function Sidebar() {
           )}>
             <div className="relative shrink-0">
               <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-300 font-bold text-sm border border-slate-200/40 dark:border-slate-700/40 transition-colors group-hover:bg-slate-200 dark:group-hover:bg-slate-700">
-                SJ
+                {initials}
               </div>
               <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900 shadow-sm" />
             </div>
@@ -160,10 +170,10 @@ export function Sidebar() {
               isCollapsed ? "w-0 opacity-0 ml-0" : "w-auto opacity-100"
             )}>
               <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 truncate group-hover:text-slate-950 dark:group-hover:text-white transition-colors duration-150">
-                Sarah Jenkins
+                {name}
               </span>
               <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
-                Admin
+                {user?.role || "-"}
               </span>
             </div>
           </div>

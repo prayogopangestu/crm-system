@@ -6,22 +6,27 @@ import { Sidebar } from "@/components/common/Sidebar"
 import { Header } from "@/components/common/Header"
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext"
 import { Toaster } from "@/components/ui/sonner"
+import { getStoredToken } from "@/lib/api"
+import { useAuthStore } from "@/hooks/useAuthStore"
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const isAuthPage = pathname === "/login" || pathname === "/daftar"
   const { isCollapsed } = useSidebar()
+  const { hydrate } = useAuthStore()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
 
   useEffect(() => {
-    const loggedIn = localStorage.getItem("crm_logged_in") === "true"
-    setIsAuthenticated(loggedIn)
+    hydrate()
+    const loggedIn = Boolean(getStoredToken())
+    const timer = window.setTimeout(() => setIsAuthenticated(loggedIn), 0)
 
     if (!loggedIn && !isAuthPage) {
       router.push("/login")
     }
-  }, [pathname, isAuthPage, router])
+    return () => window.clearTimeout(timer)
+  }, [pathname, isAuthPage, router, hydrate])
 
   // While checking authentication, show a loading spinner for protected pages
   if (isAuthenticated === null && !isAuthPage) {

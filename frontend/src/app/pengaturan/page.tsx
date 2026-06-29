@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/Input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table"
 import { Avatar, AvatarFallback } from "@/components/ui/Avatar"
-import { TeamMember } from "@/lib/mockData"
 import { useSettingsStore } from "@/hooks/useSettingsStore"
 import { toast } from "sonner"
 
@@ -34,23 +33,29 @@ type InviteInput = z.infer<typeof inviteSchema>
 export default function PengaturanPage() {
   const {
     activeTab,
+    profile,
     teamMembers,
     webhookEnabled,
+    webhookUrl,
     stages,
     showInviteModal,
+    isLoading,
+    error,
     setActiveTab,
     setShowInviteModal,
+    loadSettings,
+    updateProfile,
     inviteMember,
     addStage,
     setWebhookEnabled
   } = useSettingsStore()
 
-  const { register: registerProfile, handleSubmit: handleSubmitProfile, formState: { errors: profileErrors } } = useForm<ProfileInput>({
+  const { register: registerProfile, handleSubmit: handleSubmitProfile, reset: resetProfile, formState: { errors: profileErrors } } = useForm<ProfileInput>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      firstName: "Sarah",
-      lastName: "Jenkins",
-      email: "sarah.j@crm-enterprise.com"
+      firstName: "",
+      lastName: "",
+      email: ""
     }
   })
 
@@ -63,50 +68,60 @@ export default function PengaturanPage() {
     }
   })
 
-  // Webhook URL
-  const webhookUrl = "https://api.telegram.org/bot12345/..."
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
+
+  useEffect(() => {
+    if (!profile) return
+    resetProfile({
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      email: profile.email,
+    })
+  }, [profile, resetProfile])
 
   const handleCopyWebhook = () => {
     navigator.clipboard.writeText(webhookUrl)
     toast.success("Webhook URL disalin ke clipboard!")
   }
 
-  const handleInviteUser = (data: InviteInput) => {
-    const initials = data.inviteName
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .substring(0, 2)
-      .toUpperCase()
-
-    const newMember: TeamMember = {
-      id: "mem_" + Date.now().toString(),
-      name: data.inviteName,
-      email: data.inviteEmail,
-      role: data.inviteRole,
-      status: "Aktif",
-      initials
+  const handleInviteUser = async (data: InviteInput) => {
+    try {
+      await inviteMember({
+        name: data.inviteName,
+        email: data.inviteEmail,
+        role: data.inviteRole,
+      })
+      toast.success("Undangan anggota berhasil dibuat")
+      resetInvite()
+    } catch {
+      toast.error("Undangan anggota gagal dibuat")
     }
-
-    inviteMember(newMember)
-    resetInvite()
   }
 
-  const handleUpdateProfile = (data: ProfileInput) => {
-    toast.success("Profil diperbarui!")
+  const handleUpdateProfile = async (data: ProfileInput) => {
+    try {
+      await updateProfile(data)
+      toast.success("Profil diperbarui!")
+    } catch {
+      toast.error("Profil gagal diperbarui")
+    }
   }
 
-  const handleAddStage = () => {
+  const handleAddStage = async () => {
     const stageName = prompt("Masukkan nama tahapan penjualan baru:")
     if (!stageName) return
 
-    const newStage = {
-      id: "s_" + Date.now().toString(),
-      name: stageName,
-      color: "bg-surface-variant"
+    try {
+      await addStage({
+        name: stageName,
+        color: "bg-surface-variant",
+      })
+      toast.success("Tahapan berhasil ditambahkan")
+    } catch {
+      toast.error("Tahapan gagal ditambahkan")
     }
-
-    addStage(newStage)
   }
 
   return (
@@ -120,6 +135,12 @@ export default function PengaturanPage() {
           Kelola konfigurasi sistem, tim, dan integrasi eksternal.
         </p>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-xs font-semibold text-on-error-container">
+          {error}
+        </div>
+      )}
 
       {/* Settings Tabs */}
       <div className="flex border-b border-outline-variant mb-stack-lg overflow-x-auto hide-scrollbar">
@@ -151,11 +172,11 @@ export default function PengaturanPage() {
             <h3 className="font-headline-md text-base font-bold text-on-surface mb-4">Profil Saya</h3>
             <div className="flex items-center space-x-4 mb-6">
               <Avatar className="h-16 w-16">
-                <AvatarFallback className="text-xl">SJ</AvatarFallback>
+                <AvatarFallback className="text-xl">{profile?.initials || "?"}</AvatarFallback>
               </Avatar>
               <div>
-                <h4 className="font-bold text-base text-on-surface">Sarah Jenkins</h4>
-                <p className="text-xs text-on-surface-variant">Administrator Proyek</p>
+                <h4 className="font-bold text-base text-on-surface">{profile?.name || "Memuat profil..."}</h4>
+                <p className="text-xs text-on-surface-variant">{profile?.role || "-"}</p>
               </div>
             </div>
             <form onSubmit={handleSubmitProfile(handleUpdateProfile)} className="space-y-4">
@@ -193,8 +214,8 @@ export default function PengaturanPage() {
                 )}
               </div>
               <div className="flex justify-end pt-2">
-                <Button type="submit" variant="default">
-                  Simpan Perubahan
+                <Button type="submit" variant="default" disabled={isLoading}>
+                  {isLoading ? "Menyimpan..." : "Simpan Perubahan"}
                 </Button>
               </div>
             </form>
@@ -230,6 +251,13 @@ export default function PengaturanPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {isLoading && teamMembers.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-on-surface-variant/70">
+                        Memuat anggota tim...
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {teamMembers.map((member) => (
                     <TableRow key={member.id}>
                       <TableCell>
@@ -326,7 +354,11 @@ export default function PengaturanPage() {
                   <input
                     type="checkbox"
                     checked={webhookEnabled}
-                    onChange={() => setWebhookEnabled(!webhookEnabled)}
+                    onChange={() => {
+                      setWebhookEnabled(!webhookEnabled).catch(() => {
+                        toast.error("Integrasi gagal diperbarui")
+                      })
+                    }}
                     className="sr-only peer"
                   />
                   <div className="w-9 h-5 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-outline-variant after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
@@ -343,7 +375,7 @@ export default function PengaturanPage() {
                       className="w-full bg-transparent border-none text-xs text-on-surface py-2 px-3 focus:ring-0 outline-none opacity-70"
                       readOnly
                       type="text"
-                      value={webhookUrl}
+                      value={webhookUrl || "-"}
                     />
                     <button
                       type="button"
@@ -448,8 +480,8 @@ export default function PengaturanPage() {
                 >
                   Batal
                 </Button>
-                <Button type="submit" variant="default">
-                  Undang
+                <Button type="submit" variant="default" disabled={isLoading}>
+                  {isLoading ? "Mengundang..." : "Undang"}
                 </Button>
               </div>
             </form>

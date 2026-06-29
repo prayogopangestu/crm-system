@@ -69,14 +69,21 @@ Install all the required npm packages:
 npm install
 ```
 
-### 3. Run the Development Server
+### 3. Configure Backend URL
+Create `.env.local` from `.env.example` and keep the default when the Go backend
+is running on Docker/local port `8080`:
+```bash
+cp .env.example .env.local
+```
+
+### 4. Run the Development Server
 Start the local development server:
 ```bash
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.
 
-### 4. Build for Production
+### 5. Build for Production
 To build the application for production deployment:
 ```bash
 npm run build

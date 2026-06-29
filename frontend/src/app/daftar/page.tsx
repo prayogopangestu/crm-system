@@ -41,16 +41,18 @@ export default function DaftarPage() {
 
   const onSubmit = (data: RegisterInput) => {
     setError(null)
-    registerUser(() => {
+    registerUser({
+      fullName: data.fullName,
+      companyName: data.companyName,
+      email: data.email,
+      password: data.password,
+    }, () => {
       router.push("/")
     })
   }
 
-  const handleSocialRegister = (provider: string) => {
-    setError(null)
-    registerUser(() => {
-      router.push("/")
-    })
+  const handleSocialRegister = () => {
+    setError("Registrasi sosial belum tersambung ke backend.")
   }
 
   return (
@@ -80,7 +82,7 @@ export default function DaftarPage() {
           <Input
             type="text"
             {...register("fullName")}
-            placeholder="Sarah Jenkins"
+            placeholder="Nama Lengkap"
             className={errors.fullName ? "border-red-500" : ""}
           />
           {errors.fullName && (
@@ -175,7 +177,7 @@ export default function DaftarPage() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => handleSocialRegister("Google")}
+          onClick={handleSocialRegister}
           className="flex items-center justify-center gap-2 text-xs py-2 font-semibold cursor-pointer"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -201,7 +203,7 @@ export default function DaftarPage() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => handleSocialRegister("Microsoft")}
+          onClick={handleSocialRegister}
           className="flex items-center justify-center gap-2 text-xs py-2 font-semibold cursor-pointer"
         >
           <svg className="w-4 h-4" viewBox="0 0 23 23">

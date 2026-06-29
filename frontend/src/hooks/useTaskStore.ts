@@ -1,12 +1,13 @@
 import { create } from "zustand"
-import { initialTasks, Task } from "@/lib/mockData"
+import { apiRequest, MutationResponse } from "@/lib/api"
+import { Task, TaskPriority, TaskType } from "@/types/crm"
 
 export interface TaskFormData {
   title: string
   relatedTo: string
-  type: "Meeting" | "Call" | "Proposal" | "Other"
+  type: TaskType
   time: string
-  priority: "Tinggi" | "Sedang" | "Rendah"
+  priority: TaskPriority
   assignee: string
   completedDirectly: boolean
   notes: string
@@ -22,13 +23,26 @@ interface TaskState {
   // Form States
   step: number
   formData: TaskFormData
+  isLoading: boolean
+  error: string | null
   
   // Task List Actions
-  toggleTask: (taskId: string) => void
+  loadTasks: () => Promise<void>
+  toggleTask: (taskId: string) => Promise<void>
   toggleExpand: (taskId: string) => void
   setCurrentMonthDate: (date: Date | ((prev: Date) => Date)) => void
   setSelectedDate: (date: Date) => void
-  addTask: (task: Task) => void
+  addTask: (task: {
+    title: string
+    company: string
+    time: string
+    date: string
+    type: TaskType
+    priority: TaskPriority
+    assignee: string
+    notes: string
+    completed: boolean
+  }) => Promise<void>
   
   // Form Actions
   setStep: (step: number) => void
@@ -42,26 +56,57 @@ const initialFormData: TaskFormData = {
   type: "Call",
   time: "12:00",
   priority: "Sedang",
-  assignee: "Sarah Jenkins",
+  assignee: "",
   completedDirectly: false,
   notes: ""
 }
 
-export const useTaskStore = create<TaskState>((set) => ({
+export const useTaskStore = create<TaskState>((set, get) => ({
   // Initial values
-  tasks: initialTasks,
+  tasks: [],
   currentMonthDate: new Date(),
   selectedDate: new Date(),
   expandedTaskId: null,
   step: 1,
   formData: initialFormData,
+  isLoading: false,
+  error: null,
   
   // Actions
-  toggleTask: (taskId) => set((state) => ({
-    tasks: state.tasks.map((task) =>
-      task.id === taskId ? { ...task, completed: !task.completed } : task
-    )
-  })),
+  loadTasks: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const tasks = await apiRequest<Task[]>("/api/tasks")
+      set({ tasks, isLoading: false })
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : "Gagal memuat tugas",
+      })
+    }
+  },
+  toggleTask: async (taskId) => {
+    const previous = get().tasks
+    const target = previous.find((task) => task.id === taskId)
+    if (!target) return
+    const completed = !target.completed
+    set({
+      tasks: previous.map((task) => (task.id === taskId ? { ...task, completed } : task)),
+      error: null,
+    })
+    try {
+      await apiRequest<{ success: boolean; completed: boolean }>(`/api/tasks/${taskId}/toggle`, {
+        method: "PATCH",
+        body: { completed },
+      })
+    } catch (error) {
+      set({
+        tasks: previous,
+        error: error instanceof Error ? error.message : "Gagal mengubah status tugas",
+      })
+      throw error
+    }
+  },
   toggleExpand: (taskId) => set((state) => ({
     expandedTaskId: state.expandedTaskId === taskId ? null : taskId
   })),
@@ -69,9 +114,25 @@ export const useTaskStore = create<TaskState>((set) => ({
     currentMonthDate: typeof date === "function" ? date(state.currentMonthDate) : date
   })),
   setSelectedDate: (selectedDate) => set({ selectedDate }),
-  addTask: (task) => set((state) => ({
-    tasks: [task, ...state.tasks]
-  })),
+  addTask: async (task) => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await apiRequest<MutationResponse<Task>>("/api/tasks", {
+        method: "POST",
+        body: task,
+      })
+      set((state) => ({
+        tasks: [response.data, ...state.tasks],
+        isLoading: false,
+      }))
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : "Gagal menyimpan tugas",
+      })
+      throw error
+    }
+  },
   setStep: (step) => set({ step }),
   updateFormData: (data) => set((state) => ({
     formData: { ...state.formData, ...data }

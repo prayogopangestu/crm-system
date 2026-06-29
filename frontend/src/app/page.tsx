@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react"
 import { Card } from "@/components/ui/Card"
 import { Checkbox } from "@/components/ui/Checkbox"
-import { initialTasks, initialActivities, initialDeals, initialContacts } from "@/lib/mockData"
+import { apiRequest } from "@/lib/api"
+import { Activity, ConversionPoint, DashboardStats, Task } from "@/types/crm"
 import {
   AreaChart,
   Area,
@@ -14,16 +15,13 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-const chartData = [
-  { name: "Jan", Konversi: 40 },
-  { name: "Feb", Konversi: 55 },
-  { name: "Mar", Konversi: 45 },
-  { name: "Apr", Konversi: 70 },
-  { name: "Mei", Konversi: 90 },
-  { name: "Jun", Konversi: 85 },
-]
+interface AreaTooltipProps {
+  active?: boolean
+  payload?: Array<{ value: number }>
+  label?: string
+}
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: AreaTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-surface-container-lowest border border-outline-variant p-3 rounded-lg shadow-md text-xs">
@@ -39,27 +37,67 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export default function Dashboard() {
   const [mounted, setMounted] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [chartData, setChartData] = useState<ConversionPoint[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
+
   useEffect(() => {
-    setMounted(true)
+    const timer = window.setTimeout(() => setMounted(true), 0)
+    return () => window.clearTimeout(timer)
   }, [])
 
-  const [tasks, setTasks] = useState(initialTasks.filter(t => t.status === "today"))
-  const [activities] = useState(initialActivities)
+  useEffect(() => {
+    const loadDashboard = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const [statsResult, chartResult, activityResult, taskResult] = await Promise.all([
+          apiRequest<DashboardStats>("/api/dashboard/stats"),
+          apiRequest<ConversionPoint[]>("/api/dashboard/conversion-chart"),
+          apiRequest<Activity[]>("/api/dashboard/activities?limit=5"),
+          apiRequest<Task[]>("/api/tasks?status=today"),
+        ])
+        setStats(statsResult)
+        setChartData(chartResult)
+        setActivities(activityResult)
+        setTasks(taskResult)
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "Gagal memuat dashboard")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    const timer = window.setTimeout(() => {
+      void loadDashboard()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
-  const handleToggleTask = (taskId: string) => {
+  const handleToggleTask = async (taskId: string) => {
+    const target = tasks.find((task) => task.id === taskId)
+    if (!target) return
+    const completed = !target.completed
+    const previous = tasks
     setTasks(prev =>
       prev.map(task =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
+        task.id === taskId ? { ...task, completed } : task
       )
     )
+    try {
+      await apiRequest<{ success: boolean; completed: boolean }>(`/api/tasks/${taskId}/toggle`, {
+        method: "PATCH",
+        body: { completed },
+      })
+    } catch (error) {
+      setTasks(previous)
+      setError(error instanceof Error ? error.message : "Gagal mengubah status tugas")
+    }
   }
 
-  // Calculate stats dynamically
-  const totalLeads = initialContacts.length + 1232 // Dynamic base + list size
-  const dealWonCount = initialDeals.filter(d => d.stage === "won").length + 38
-  const totalRevenueText = "Rp 1.2M"
-
-  const urgentCount = tasks.filter(t => !t.completed && t.type === "Proposal" || t.type === "Meeting").length
+  const urgentCount = stats?.urgentTasksCount || 0
 
   return (
     <div className="p-gutter max-w-container-max-width mx-auto w-full">
@@ -72,6 +110,12 @@ export default function Dashboard() {
           Ringkasan performa penjualan dan aktivitas hari ini.
         </p>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-error-container bg-error-container/40 px-4 py-3 text-xs font-semibold text-on-error-container">
+          {error}
+        </div>
+      )}
 
       {/* Metrics Row (Bento Grid Style) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -86,11 +130,11 @@ export default function Dashboard() {
           </div>
           <div className="relative z-10">
             <h3 className="font-display-lg text-2xl font-bold text-on-surface">
-              {totalLeads.toLocaleString("id-ID")}
+              {(stats?.totalLeads || 0).toLocaleString("id-ID")}
             </h3>
             <div className="flex items-center gap-1 mt-2 text-primary text-xs font-semibold">
               <span className="material-symbols-outlined text-[16px]">trending_up</span>
-              <span>+12% bulan ini</span>
+              <span>{stats?.leadsTrend || "-"}</span>
             </div>
           </div>
         </Card>
@@ -106,11 +150,11 @@ export default function Dashboard() {
           </div>
           <div className="relative z-10">
             <h3 className="font-display-lg text-2xl font-bold text-on-surface">
-              {dealWonCount}
+              {stats?.dealWonCount || 0}
             </h3>
             <div className="flex items-center gap-1 mt-2 text-primary text-xs font-semibold">
               <span className="material-symbols-outlined text-[16px]">trending_up</span>
-              <span>+5 dari minggu lalu</span>
+              <span>{stats?.wonTrend || "-"}</span>
             </div>
           </div>
         </Card>
@@ -126,11 +170,11 @@ export default function Dashboard() {
           </div>
           <div className="relative z-10">
             <h3 className="font-display-lg text-2xl font-bold text-on-surface">
-              {totalRevenueText}
+              {stats?.totalRevenue || "Rp 0"}
             </h3>
             <div className="flex items-center gap-1 mt-2 text-outline text-xs font-semibold">
               <span className="material-symbols-outlined text-[16px]">trending_flat</span>
-              <span>Stabil</span>
+              <span>{stats?.revenueTrend || "-"}</span>
             </div>
           </div>
         </Card>
@@ -152,7 +196,7 @@ export default function Dashboard() {
             </div>
             {/* Recharts Area Chart */}
             <div className="h-[220px] w-full bg-surface-container-low rounded-lg border border-surface-variant p-4 flex items-center justify-center">
-              {mounted ? (
+              {mounted && !isLoading ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={chartData}
@@ -261,7 +305,7 @@ export default function Dashboard() {
                   >
                     <Checkbox
                       checked={task.completed}
-                      onChange={() => handleToggleTask(task.id)}
+                      onChange={() => void handleToggleTask(task.id)}
                       className="mt-1"
                     />
                     <div className="min-w-0 flex-1">

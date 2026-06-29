@@ -70,5 +70,14 @@ Seeder demo dijalankan secara eksplisit:
 SEED_ADMIN_EMAIL=admin@example.com SEED_ADMIN_PASSWORD=Admin123! go run ./cmd/seed
 ```
 
+Atau isi data demo lengkap lewat SQL dari DBeaver:
+
+```sql
+\i scripts/demo_seed.sql
+```
+
+Jika DBeaver tidak mendukung `\i`, buka `scripts/demo_seed.sql`, lalu jalankan
+seluruh query-nya pada database `crm`.
+
 Lihat `endpoint-golang.md` untuk keputusan kontrak, model data, cache, RBAC,
 dan catatan integrasi frontend.
