@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { Card } from "@/components/ui/Card"
 import { Checkbox } from "@/components/ui/Checkbox"
+import { cn } from "@/lib/utils"
 import { apiRequest } from "@/lib/api"
 import { Activity, ConversionPoint, DashboardStats, Task } from "@/types/crm"
 import {
@@ -24,15 +25,158 @@ interface AreaTooltipProps {
 const CustomTooltip = ({ active, payload, label }: AreaTooltipProps) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-surface-container-lowest border border-outline-variant p-3 rounded-lg shadow-md text-xs">
+      <div className="bg-surface-container-lowest border border-outline-variant px-3 py-2 rounded-xl shadow-lg text-xs">
         <p className="font-bold text-on-surface mb-1">{label}</p>
-        <p className="text-emerald-600 font-bold">
+        <p className="text-emerald-600 font-bold flex items-center gap-1">
+          <span className="material-symbols-outlined text-[14px]">show_chart</span>
           Konversi: {payload[0].value}%
         </p>
       </div>
     )
   }
   return null
+}
+
+type TrendDir = "up" | "down" | "flat"
+
+function parseTrend(trend?: string): TrendDir {
+  if (!trend) return "flat"
+  const t = trend.toLowerCase().trim()
+  if (t.startsWith("+") || t.includes("naik") || t.includes("up") || t.includes("tinggi")) {
+    return "up"
+  }
+  if (t.startsWith("-") || t.includes("turun") || t.includes("down") || t.includes("rendah")) {
+    return "down"
+  }
+  return "flat"
+}
+
+const ACCENTS = {
+  primary: {
+    chip: "bg-primary-fixed text-primary",
+    blob: "bg-primary-fixed/60",
+    glow: "group-hover:shadow-primary/10",
+  },
+  emerald: {
+    chip: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    blob: "bg-emerald-400/40",
+    glow: "group-hover:shadow-emerald-500/10",
+  },
+  amber: {
+    chip: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    blob: "bg-amber-400/40",
+    glow: "group-hover:shadow-amber-500/10",
+  },
+} as const
+
+function StatCard({
+  icon,
+  label,
+  value,
+  trend,
+  accent,
+  delay = 0,
+}: {
+  icon: string
+  label: string
+  value: string
+  trend?: string
+  accent: (typeof ACCENTS)[keyof typeof ACCENTS]
+  delay?: number
+}) {
+  const dir = parseTrend(trend)
+  const trendStyles: Record<TrendDir, string> = {
+    up: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    down: "bg-red-500/10 text-red-600 dark:text-red-400",
+    flat: "bg-surface-container-high text-on-surface-variant",
+  }
+  const trendIcons: Record<TrendDir, string> = {
+    up: "trending_up",
+    down: "trending_down",
+    flat: "trending_flat",
+  }
+
+  return (
+    <Card
+      className="relative overflow-hidden p-5 group transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:ring-primary/20"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {/* Decorative gradient blob */}
+      <div
+        className={cn(
+          "pointer-events-none absolute -right-10 -top-10 w-36 h-36 rounded-full blur-3xl opacity-70 group-hover:opacity-100 transition-opacity duration-500",
+          accent.blob
+        )}
+      />
+      {/* Subtle corner accent line */}
+      <div className="pointer-events-none absolute right-0 top-0 h-20 w-20 rounded-bl-[3rem] bg-gradient-to-br from-transparent to-foreground/[0.02]" />
+
+      <div className="relative z-10 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div
+            className={cn(
+              "flex items-center justify-center w-11 h-11 rounded-2xl ring-1 ring-inset ring-foreground/5 transition-transform duration-300 group-hover:scale-105",
+              accent.chip
+            )}
+          >
+            <span className="material-symbols-outlined text-[22px]">{icon}</span>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-on-surface-variant text-xs font-semibold tracking-wide uppercase mb-1.5">
+            {label}
+          </p>
+          <h3 className="font-display-lg text-[28px] leading-none font-bold text-on-surface tracking-tight">
+            {value}
+          </h3>
+        </div>
+
+        <div>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold",
+              trendStyles[dir]
+            )}
+          >
+            <span className="material-symbols-outlined text-[14px]">{trendIcons[dir]}</span>
+            {trend || "-"}
+          </span>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+const AVATAR_COLORS = [
+  "bg-primary-fixed text-primary",
+  "bg-tertiary-fixed text-tertiary dark:text-tertiary-fixed-dim",
+  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+]
+
+function initialsOf(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+}
+
+function colorFor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+const PRIORITY_DOT: Record<string, string> = {
+  Tinggi: "bg-red-500",
+  Sedang: "bg-amber-500",
+  Rendah: "bg-emerald-500",
 }
 
 export default function Dashboard() {
@@ -99,6 +243,11 @@ export default function Dashboard() {
 
   const urgentCount = stats?.urgentTasksCount || 0
 
+  const avgConversion = chartData.length
+    ? Math.round(chartData.reduce((s, d) => s + d.Konversi, 0) / chartData.length)
+    : 0
+  const latestConversion = chartData.length ? chartData[chartData.length - 1].Konversi : 0
+
   return (
     <div className="p-gutter max-w-container-max-width mx-auto w-full">
       {/* Title Header */}
@@ -117,94 +266,84 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Metrics Row (Bento Grid Style) */}
+      {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Card 1: Total Prospek */}
-        <Card className="p-4 relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-primary-fixed/20 rounded-full blur-2xl group-hover:bg-primary-fixed/30 transition-colors"></div>
-          <div className="flex justify-between items-start mb-3 relative z-10">
-            <span className="text-on-surface-variant text-xs font-semibold">Total Prospek</span>
-            <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-primary">
-              <span className="material-symbols-outlined text-[18px]">group</span>
-            </div>
-          </div>
-          <div className="relative z-10">
-            <h3 className="font-display-lg text-2xl font-bold text-on-surface">
-              {(stats?.totalLeads || 0).toLocaleString("id-ID")}
-            </h3>
-            <div className="flex items-center gap-1 mt-2 text-primary text-xs font-semibold">
-              <span className="material-symbols-outlined text-[16px]">trending_up</span>
-              <span>{stats?.leadsTrend || "-"}</span>
-            </div>
-          </div>
-        </Card>
-
-        {/* Card 2: Deal Menang */}
-        <Card className="p-4 relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-tertiary-fixed/20 rounded-full blur-2xl group-hover:bg-tertiary-fixed/30 transition-colors"></div>
-          <div className="flex justify-between items-start mb-3 relative z-10">
-            <span className="text-on-surface-variant text-xs font-semibold">Deal Menang</span>
-            <div className="w-8 h-8 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-container">
-              <span className="material-symbols-outlined text-[18px]">workspace_premium</span>
-            </div>
-          </div>
-          <div className="relative z-10">
-            <h3 className="font-display-lg text-2xl font-bold text-on-surface">
-              {stats?.dealWonCount || 0}
-            </h3>
-            <div className="flex items-center gap-1 mt-2 text-primary text-xs font-semibold">
-              <span className="material-symbols-outlined text-[16px]">trending_up</span>
-              <span>{stats?.wonTrend || "-"}</span>
-            </div>
-          </div>
-        </Card>
-
-        {/* Card 3: Total Pendapatan */}
-        <Card className="p-4 relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-secondary-fixed/30 rounded-full blur-2xl group-hover:bg-secondary-fixed/50 transition-colors"></div>
-          <div className="flex justify-between items-start mb-3 relative z-10">
-            <span className="text-on-surface-variant text-xs font-semibold">Total Pendapatan</span>
-            <div className="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center text-on-surface">
-              <span className="material-symbols-outlined text-[18px]">payments</span>
-            </div>
-          </div>
-          <div className="relative z-10">
-            <h3 className="font-display-lg text-2xl font-bold text-on-surface">
-              {stats?.totalRevenue || "Rp 0"}
-            </h3>
-            <div className="flex items-center gap-1 mt-2 text-outline text-xs font-semibold">
-              <span className="material-symbols-outlined text-[16px]">trending_flat</span>
-              <span>{stats?.revenueTrend || "-"}</span>
-            </div>
-          </div>
-        </Card>
+        <StatCard
+          icon="group"
+          label="Total Prospek"
+          value={(stats?.totalLeads || 0).toLocaleString("id-ID")}
+          trend={stats?.leadsTrend}
+          accent={ACCENTS.primary}
+          delay={0}
+        />
+        <StatCard
+          icon="emoji_events"
+          label="Deal Menang"
+          value={String(stats?.dealWonCount || 0)}
+          trend={stats?.wonTrend}
+          accent={ACCENTS.emerald}
+          delay={80}
+        />
+        <StatCard
+          icon="payments"
+          label="Total Pendapatan"
+          value={stats?.totalRevenue || "Rp 0"}
+          trend={stats?.revenueTrend}
+          accent={ACCENTS.amber}
+          delay={160}
+        />
       </div>
 
       {/* Lower Section Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left Column (Main Chart Area & Recent Activities) */}
+        {/* Left Column */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           {/* Main Chart Area */}
-          <Card className="p-4 flex flex-col w-full">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-headline-sm text-lg font-semibold text-on-surface">
-                Konversi Penjualan Bulanan
-              </h3>
-              <button className="text-secondary hover:bg-surface-container p-2 rounded-md transition-colors cursor-pointer">
-                <span className="material-symbols-outlined text-[20px]">more_vert</span>
-              </button>
+          <Card className="p-5 flex flex-col w-full">
+            <div className="flex flex-wrap justify-between items-start gap-3 mb-5">
+              <div>
+                <h3 className="font-headline-sm text-lg font-semibold text-on-surface">
+                  Konversi Penjualan Bulanan
+                </h3>
+                <p className="text-on-surface-variant text-xs mt-0.5">
+                  Persentase konversi prospek menjadi deal
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Summary stat chips */}
+                <div className="hidden sm:flex items-center gap-3 mr-1">
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">
+                      Rata-rata
+                    </p>
+                    <p className="text-sm font-bold text-on-surface">{avgConversion}%</p>
+                  </div>
+                  <div className="h-8 w-px bg-outline-variant" />
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">
+                      Bulan Ini
+                    </p>
+                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      {latestConversion}%
+                    </p>
+                  </div>
+                </div>
+                <button className="text-secondary hover:bg-surface-container p-2 rounded-lg transition-colors cursor-pointer ring-1 ring-transparent hover:ring-outline-variant">
+                  <span className="material-symbols-outlined text-[20px]">more_vert</span>
+                </button>
+              </div>
             </div>
             {/* Recharts Area Chart */}
-            <div className="h-[220px] w-full bg-surface-container-low rounded-lg border border-surface-variant p-4 flex items-center justify-center">
+            <div className="h-[240px] w-full">
               {mounted && !isLoading ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={chartData}
-                    margin={{ top: 15, right: 10, left: -20, bottom: 0 }}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                   >
                     <defs>
                       <linearGradient id="colorKonversi" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
@@ -231,95 +370,138 @@ export default function Dashboard() {
                       strokeWidth={3}
                       fillOpacity={1}
                       fill="url(#colorKonversi)"
+                      dot={false}
+                      activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="text-xs text-on-surface-variant font-medium">Memuat grafik...</div>
+                <div className="h-full w-full flex items-center justify-center text-xs text-on-surface-variant font-medium">
+                  <span className="material-symbols-outlined animate-spin mr-2 text-[18px]">
+                    progress_activity
+                  </span>
+                  Memuat grafik...
+                </div>
               )}
             </div>
           </Card>
 
-          {/* Recent Activities (Panjang Horisontal) */}
-          <Card className="p-4 flex flex-col w-full">
+          {/* Recent Activities */}
+          <Card className="p-5 flex flex-col w-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-headline-sm text-base font-semibold text-on-surface">
                 Aktivitas Terbaru
               </h3>
-              <a href="/tugas" className="text-primary text-xs font-semibold hover:underline">
+              <a href="/tugas" className="text-primary text-xs font-semibold hover:underline inline-flex items-center gap-0.5">
                 Lihat Semua
+                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
               </a>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-surface-variant text-xs text-on-surface-variant font-semibold">
-                    <th className="pb-2">Pengguna</th>
-                    <th className="pb-2">Aktivitas</th>
-                    <th className="pb-2">Target</th>
-                    <th className="pb-2 text-right">Waktu</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-variant/40 text-xs">
-                  {activities.map((activity) => (
-                    <tr key={activity.id} className="hover:bg-surface-container-low/30 transition-colors">
-                      <td className="py-2.5 font-semibold text-on-surface flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${activity.isHighlight ? "bg-primary" : "bg-outline-variant"}`}></div>
-                        {activity.user}
-                      </td>
-                      <td className="py-2.5 text-on-surface-variant">{activity.action}</td>
-                      <td className="py-2.5 font-medium text-primary">{activity.target}</td>
-                      <td className="py-2.5 text-outline text-right">{activity.time}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ul className="flex flex-col">
+              {activities.map((activity, idx) => (
+                <li
+                  key={activity.id}
+                  className={cn(
+                    "flex items-center gap-3 py-3 transition-colors hover:bg-surface-container-low/50 -mx-2 px-2 rounded-lg",
+                    idx !== activities.length - 1 && "border-b border-outline-variant/40"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold",
+                      colorFor(activity.user)
+                    )}
+                  >
+                    {initialsOf(activity.user)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-on-surface truncate">
+                      <span className="font-semibold">{activity.user}</span>{" "}
+                      <span className="text-on-surface-variant">{activity.action}</span>{" "}
+                      <span className="font-medium text-primary">{activity.target}</span>
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 flex items-center gap-1.5 text-[11px] text-outline font-medium">
+                    <span className={cn("w-1.5 h-1.5 rounded-full", activity.isHighlight ? "bg-primary" : "bg-outline-variant")} />
+                    {activity.time}
+                  </div>
+                </li>
+              ))}
+              {activities.length === 0 && !isLoading && (
+                <li className="py-8 text-center text-xs text-on-surface-variant">
+                  Belum ada aktivitas
+                </li>
+              )}
+            </ul>
           </Card>
         </div>
 
-        {/* Right Column (Tinggi/Tall) */}
+        {/* Right Column */}
         <div className="lg:col-span-1 flex flex-col">
           {/* Today's Tasks */}
-          <Card className="p-4 flex-1 flex flex-col h-full justify-between">
-            <div>
-              <div className="flex justify-between items-center mb-4">
+          <Card className="p-5 flex-1 flex flex-col h-full">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-2">
                 <h3 className="font-headline-sm text-base font-semibold text-on-surface">
                   Tugas Hari Ini
                 </h3>
-                {urgentCount > 0 && (
-                  <span className="bg-error-container text-on-error-container text-[11px] px-2.5 py-0.5 rounded-full font-semibold">
-                    {urgentCount} Penting
-                  </span>
-                )}
               </div>
-              <ul className="flex flex-col gap-3 overflow-y-auto pr-1">
-                {tasks.map(task => (
-                  <li
-                    key={task.id}
-                    className={`flex items-start gap-3 p-3 bg-surface border rounded-lg transition-all ${
-                      task.completed
-                        ? "border-outline-variant/35 opacity-60"
-                        : "border-outline-variant/50 hover:border-primary/30"
-                    }`}
-                  >
-                    <Checkbox
-                      checked={task.completed}
-                      onChange={() => void handleToggleTask(task.id)}
-                      className="mt-1"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className={`font-label-md text-sm text-on-surface ${task.completed ? "line-through text-on-surface-variant" : ""}`}>
+              {urgentCount > 0 && (
+                <span className="inline-flex items-center gap-1 bg-error-container text-on-error-container text-[11px] px-2.5 py-1 rounded-full font-semibold">
+                  <span className="material-symbols-outlined text-[13px]">priority_high</span>
+                  {urgentCount} Penting
+                </span>
+              )}
+            </div>
+            <ul className="flex flex-col gap-2.5 overflow-y-auto pr-1 -mr-1">
+              {tasks.map(task => (
+                <li
+                  key={task.id}
+                  className={cn(
+                    "group/task flex items-start gap-3 p-3 rounded-xl border bg-surface transition-all",
+                    task.completed
+                      ? "border-outline-variant/30 opacity-60"
+                      : "border-outline-variant/40 hover:border-primary/40 hover:bg-surface-container-low/50"
+                  )}
+                >
+                  <Checkbox
+                    checked={task.completed}
+                    onChange={() => void handleToggleTask(task.id)}
+                    className="mt-0.5"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                          PRIORITY_DOT[task.priority] || "bg-outline-variant"
+                        )}
+                        title={`Prioritas ${task.priority}`}
+                      />
+                      <p
+                        className={cn(
+                          "font-label-md text-sm text-on-surface truncate",
+                          task.completed && "line-through text-on-surface-variant"
+                        )}
+                      >
                         {task.title}
                       </p>
-                      <p className="font-body-md text-xs text-on-surface-variant mt-0.5 truncate">
-                        {task.company}
-                      </p>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                    <p className="font-body-md text-xs text-on-surface-variant mt-0.5 truncate pl-3.5">
+                      {task.company}
+                    </p>
+                  </div>
+                </li>
+              ))}
+              {tasks.length === 0 && !isLoading && (
+                <li className="py-10 flex flex-col items-center justify-center text-center gap-2">
+                  <span className="material-symbols-outlined text-[32px] text-outline-variant">
+                    task_alt
+                  </span>
+                  <p className="text-xs text-on-surface-variant">Tidak ada tugas hari ini</p>
+                </li>
+              )}
+            </ul>
           </Card>
         </div>
       </div>

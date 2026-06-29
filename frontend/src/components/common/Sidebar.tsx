@@ -11,7 +11,6 @@ import {
   Bell, 
   User, 
   Settings, 
-  HelpCircle, 
   LogOut 
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -31,7 +30,6 @@ const navItems: NavItem[] = [
   { name: "Tugas & Aktivitas", href: "/tugas", icon: Bell, badge: 12 },
   { name: "Laporan", href: "/laporan", icon: BarChart3 },
   { name: "Pengaturan", href: "/pengaturan", icon: Settings },
-  { name: "Bantuan", href: "#", icon: HelpCircle },
 ]
 
 export function Sidebar() {
