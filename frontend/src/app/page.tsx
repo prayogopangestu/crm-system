@@ -53,7 +53,7 @@ function parseTrend(trend?: string): TrendDir {
 
 const ACCENTS = {
   primary: {
-    chip: "bg-primary-fixed text-primary",
+    chip: "bg-primary-fixed text-on-primary-fixed",
     blob: "bg-primary-fixed/60",
     glow: "group-hover:shadow-primary/10",
   },
@@ -269,7 +269,7 @@ export default function Dashboard() {
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatCard
-          icon="group"
+          icon="person_add"
           label="Total Prospek"
           value={(stats?.totalLeads || 0).toLocaleString("id-ID")}
           trend={stats?.leadsTrend}

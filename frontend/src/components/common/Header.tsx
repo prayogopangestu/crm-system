@@ -1,44 +1,47 @@
-"use client"
+"use client";
 
-import React, { useEffect, useState } from "react"
-import { Button } from "@/components/ui/Button"
-import { Avatar, AvatarFallback } from "@/components/ui/Avatar"
-import { useSidebar } from "@/context/SidebarContext"
-import { useTheme } from "next-themes"
-import { Sun, Moon } from "lucide-react"
-import { toast } from "sonner"
-import { useAuthStore } from "@/hooks/useAuthStore"
+import React, { useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { Avatar, AvatarFallback } from "@/components/ui/Avatar";
+import { useSidebar } from "@/context/SidebarContext";
+import { useTheme } from "next-themes";
+import { Sun, Moon } from "lucide-react";
+import { useAuthStore } from "@/hooks/useAuthStore";
+import { QuickCreateDialog } from "@/components/common/QuickCreateDialog";
+import { MissedTasksSheet } from "@/components/common/MissedTasksSheet";
 
 export function Header() {
-  const { toggleCollapse, toggleMobile, isCollapsed } = useSidebar()
-  const { theme, setTheme } = useTheme()
-  const { user } = useAuthStore()
-  const [mounted, setMounted] = useState(false)
+  const { toggleCollapse, toggleMobile, isCollapsed } = useSidebar();
+  const { theme, setTheme } = useTheme();
+  const { user } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const name = user?.name || "User CRM"
+  const name = user?.name || "User CRM";
   const initials = name
     .split(" ")
     .map((part) => part[0])
     .join("")
     .substring(0, 2)
-    .toUpperCase()
+    .toUpperCase();
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setMounted(true), 0)
-    return () => window.clearTimeout(timer)
-  }, [])
+    const timer = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const handleToggle = () => {
     if (window.innerWidth < 768) {
-      toggleMobile()
+      toggleMobile();
     } else {
-      toggleCollapse()
+      toggleCollapse();
     }
-  }
+  };
 
   const handleQuickCreate = () => {
-    toast.info("Fitur Quick Create akan membuka form pembuatan kontak/peluang baru secara instan!")
-  }
+    setQuickCreateOpen(true);
+  };
 
   return (
     <header className="flex items-center justify-between px-4 md:px-6 w-full h-header-height bg-surface-container-lowest border-b border-outline-variant z-20 sticky top-0">
@@ -52,20 +55,6 @@ export function Header() {
           {isCollapsed ? "menu" : "menu_open"}
         </span>
       </button>
-
-      {/* Search Input Bar */}
-      <div className="flex items-center flex-1 max-w-md">
-        <div className="relative w-full">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px] pointer-events-none">
-            search
-          </span>
-          <input
-            className="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary font-body-md text-sm text-on-surface placeholder:text-outline transition-all outline-none"
-            placeholder="Cari kontak, tugas, atau peluang..."
-            type="text"
-          />
-        </div>
-      </div>
 
       {/* Action Buttons & Profile */}
       <div className="flex items-center gap-stack-md ml-auto">
@@ -81,7 +70,12 @@ export function Header() {
         </Button>
 
         {/* Notifications Icon Button */}
-        <button className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors relative cursor-pointer">
+        <button
+          onClick={() => setNotificationsOpen(true)}
+          className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors relative cursor-pointer"
+          title="Tugas Terlewat"
+          aria-label="Tugas Terlewat"
+        >
           <span className="material-symbols-outlined">notifications</span>
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full border border-surface-container-lowest"></span>
         </button>
@@ -89,14 +83,18 @@ export function Header() {
         {/* Theme Toggle Button */}
         <button
           onClick={() => {
-            document.documentElement.classList.add("theme-transition")
-            setTheme(theme === "dark" ? "light" : "dark")
+            document.documentElement.classList.add("theme-transition");
+            setTheme(theme === "dark" ? "light" : "dark");
             setTimeout(() => {
-              document.documentElement.classList.remove("theme-transition")
-            }, 300)
+              document.documentElement.classList.remove("theme-transition");
+            }, 300);
           }}
           className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors relative cursor-pointer flex items-center justify-center"
-          title={mounted && theme === "dark" ? "Ubah ke mode terang" : "Ubah ke mode gelap"}
+          title={
+            mounted && theme === "dark"
+              ? "Ubah ke mode terang"
+              : "Ubah ke mode gelap"
+          }
         >
           {mounted && theme === "dark" ? (
             <Sun className="h-5 w-5 text-amber-500 animate-in duration-300" />
@@ -123,6 +121,15 @@ export function Header() {
           </div>
         </div>
       </div>
+
+      <QuickCreateDialog
+        open={quickCreateOpen}
+        onOpenChange={setQuickCreateOpen}
+      />
+      <MissedTasksSheet
+        open={notificationsOpen}
+        onOpenChange={setNotificationsOpen}
+      />
     </header>
-  )
+  );
 }
