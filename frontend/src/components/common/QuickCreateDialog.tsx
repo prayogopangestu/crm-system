@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -27,11 +27,7 @@ import {
 import { useTaskStore } from "@/hooks/useTaskStore"
 import { apiRequest } from "@/lib/api"
 import { TeamMember, UserProfile } from "@/types/crm"
-
-const indonesianMonths = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-]
+import { useLanguage } from "@/context/LanguageContext"
 
 function formatDate(date: Date) {
   const year = date.getFullYear()
@@ -40,25 +36,37 @@ function formatDate(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-const quickCreateSchema = z.object({
-  title: z.string().min(3, "Judul tugas minimal 3 karakter"),
-  company: z.string().min(2, "Nama klien/perusahaan minimal 2 karakter"),
-  date: z
-    .string()
-    .min(1, "Tanggal wajib diisi")
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal harus YYYY-MM-DD"),
-  time: z
-    .string()
-    .min(1, "Waktu wajib diisi")
-    .regex(/^\d{2}:\d{2}$/, "Format waktu harus HH:MM"),
-  type: z.enum(["Meeting", "Call", "Proposal", "Other"]),
-  priority: z.enum(["Tinggi", "Sedang", "Rendah"]),
-  assignee: z.string().min(1, "Penanggung jawab wajib dipilih"),
-  notes: z.string().min(5, "Catatan minimal 5 karakter"),
-  completed: z.boolean(),
-})
+type QuickCreateInput = {
+  title: string
+  company: string
+  date: string
+  time: string
+  type: "Meeting" | "Call" | "Proposal" | "Other"
+  priority: "Tinggi" | "Sedang" | "Rendah"
+  assignee: string
+  notes: string
+  completed: boolean
+}
 
-type QuickCreateInput = z.infer<typeof quickCreateSchema>
+function buildSchema(t: (k: string) => string) {
+  return z.object({
+    title: z.string().min(3, t("quickCreate.validation.titleMin")),
+    company: z.string().min(2, t("quickCreate.validation.companyMin")),
+    date: z
+      .string()
+      .min(1, t("quickCreate.validation.dateRequired"))
+      .regex(/^\d{4}-\d{2}-\d{2}$/, t("quickCreate.validation.dateFormat")),
+    time: z
+      .string()
+      .min(1, t("quickCreate.validation.timeRequired"))
+      .regex(/^\d{2}:\d{2}$/, t("quickCreate.validation.timeFormat")),
+    type: z.enum(["Meeting", "Call", "Proposal", "Other"]),
+    priority: z.enum(["Tinggi", "Sedang", "Rendah"]),
+    assignee: z.string().min(1, t("quickCreate.validation.assigneeRequired")),
+    notes: z.string().min(5, t("quickCreate.validation.notesMin")),
+    completed: z.boolean(),
+  })
+}
 
 interface QuickCreateDialogProps {
   open: boolean
@@ -67,7 +75,10 @@ interface QuickCreateDialogProps {
 
 export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps) {
   const { addTask, isLoading } = useTaskStore()
+  const { t, locale } = useLanguage()
   const [assignees, setAssignees] = useState<Array<{ id: string; name: string }>>([])
+
+  const quickCreateSchema = useMemo(() => buildSchema(t), [t])
 
   const { register, handleSubmit, control, reset, formState: { errors } } = useForm<QuickCreateInput>({
     resolver: zodResolver(quickCreateSchema),
@@ -124,13 +135,16 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
       })
 
       const dateObj = new Date(`${data.date}T00:00:00`)
-      toast.success("Tugas berhasil ditambahkan!", {
-        description: `Tugas: "${data.title}" | Klien: ${data.company} untuk tanggal ${dateObj.getDate()} ${indonesianMonths[dateObj.getMonth()]} ${dateObj.getFullYear()}`,
+      const months = locale === "id"
+        ? ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+        : ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+      toast.success(t("toast.taskAdded"), {
+        description: t("toast.taskAddedDesc", { title: data.title, company: data.company, date: `${dateObj.getDate()} ${months[dateObj.getMonth()]} ${dateObj.getFullYear()}` }),
       })
       reset()
       handleClose()
     } catch {
-      toast.error("Tugas gagal disimpan")
+      toast.error(t("toast.taskSaveError"))
     }
   }
 
@@ -140,10 +154,10 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-[20px]">add_task</span>
-            Quick Create Tugas
+            {t("quickCreate.title")}
           </DialogTitle>
           <DialogDescription>
-            Buat tugas baru secara instan. Lengkapi data di bawah lalu simpan.
+            {t("quickCreate.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -152,11 +166,11 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-                Judul Tugas <span className="text-red-500">*</span>
+                {t("quickCreate.taskTitle")} <span className="text-red-500">*</span>
               </label>
               <Input
                 {...register("title")}
-                placeholder="Contoh: Telepon Budi Wijaya"
+                placeholder={t("quickCreate.taskTitlePlaceholder")}
                 className={errors.title ? "border-red-500" : ""}
               />
               {errors.title && (
@@ -165,11 +179,11 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
             </div>
             <div>
               <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-                Terkait Dengan (Klien/Perusahaan) <span className="text-red-500">*</span>
+                {t("quickCreate.relatedTo")} <span className="text-red-500">*</span>
               </label>
               <Input
                 {...register("company")}
-                placeholder="Contoh: PT Telkomsel"
+                placeholder={t("quickCreate.relatedToPlaceholder")}
                 className={errors.company ? "border-red-500" : ""}
               />
               {errors.company && (
@@ -182,7 +196,7 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-                Tanggal <span className="text-red-500">*</span>
+                {t("quickCreate.date")} <span className="text-red-500">*</span>
               </label>
               <Input
                 type="date"
@@ -195,7 +209,7 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
             </div>
             <div>
               <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-                Waktu <span className="text-red-500">*</span>
+                {t("quickCreate.time")} <span className="text-red-500">*</span>
               </label>
               <Input
                 type="time"
@@ -212,7 +226,7 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-                Jenis Aktivitas
+                {t("quickCreate.activityType")}
               </label>
               <Controller
                 name="type"
@@ -220,13 +234,13 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Pilih Jenis" />
+                      <SelectValue placeholder={t("quickCreate.selectType")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Call">Panggilan Telepon (Call)</SelectItem>
-                      <SelectItem value="Meeting">Pertemuan (Meeting)</SelectItem>
-                      <SelectItem value="Proposal">Kirim Proposal</SelectItem>
-                      <SelectItem value="Other">Lainnya</SelectItem>
+                      <SelectItem value="Call">{t("values.taskType.Call")}</SelectItem>
+                      <SelectItem value="Meeting">{t("values.taskType.Meeting")}</SelectItem>
+                      <SelectItem value="Proposal">{t("values.taskType.Proposal")}</SelectItem>
+                      <SelectItem value="Other">{t("values.taskType.Other")}</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -234,7 +248,7 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
             </div>
             <div>
               <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-                Prioritas
+                {t("quickCreate.priority")}
               </label>
               <Controller
                 name="priority"
@@ -242,12 +256,12 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Pilih Prioritas" />
+                      <SelectValue placeholder={t("quickCreate.selectPriority")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Tinggi">Tinggi</SelectItem>
-                      <SelectItem value="Sedang">Sedang</SelectItem>
-                      <SelectItem value="Rendah">Rendah</SelectItem>
+                      <SelectItem value="Tinggi">{t("values.priority.Tinggi")}</SelectItem>
+                      <SelectItem value="Sedang">{t("values.priority.Sedang")}</SelectItem>
+                      <SelectItem value="Rendah">{t("values.priority.Rendah")}</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -255,7 +269,7 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
             </div>
             <div>
               <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-                Penanggung Jawab
+                {t("quickCreate.assignee")}
               </label>
               <Controller
                 name="assignee"
@@ -263,7 +277,7 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Pilih Penanggung Jawab" />
+                      <SelectValue placeholder={t("quickCreate.selectAssignee")} />
                     </SelectTrigger>
                     <SelectContent>
                       {assignees.map((assignee) => (
@@ -284,14 +298,14 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
           {/* Catatan */}
           <div>
             <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-              Catatan Detail <span className="text-red-500">*</span>
+              {t("quickCreate.detailNotes")} <span className="text-red-500">*</span>
             </label>
             <textarea
               {...register("notes")}
               className={`w-full rounded-lg border bg-surface-container-lowest py-2 px-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none resize-none min-h-[72px] ${
                 errors.notes ? "border-red-500" : "border-outline-variant"
               }`}
-              placeholder="Tulis instruksi detail, nomor telepon, ringkasan agenda..."
+              placeholder={t("quickCreate.notesPlaceholder")}
               rows={3}
             />
             {errors.notes && (
@@ -314,14 +328,14 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
               )}
             />
             <label htmlFor="quick-create-completed" className="text-xs font-semibold text-on-surface-variant cursor-pointer select-none">
-              Tandai tugas ini langsung selesai (Logged Activity)
+              {t("quickCreate.markCompleted")}
             </label>
           </div>
 
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="ghost" className="cursor-pointer">
-                Batal
+                {t("common.cancel")}
               </Button>
             </DialogClose>
             <Button
@@ -331,7 +345,7 @@ export function QuickCreateDialog({ open, onOpenChange }: QuickCreateDialogProps
               className="flex items-center gap-1.5 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">save</span>
-              {isLoading ? "Menyimpan..." : "Simpan Tugas"}
+              {isLoading ? t("common.saving") : t("quickCreate.saveBtn")}
             </Button>
           </DialogFooter>
         </form>

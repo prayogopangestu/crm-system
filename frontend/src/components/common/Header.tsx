@@ -9,16 +9,24 @@ import { Sun, Moon } from "lucide-react";
 import { useAuthStore } from "@/hooks/useAuthStore";
 import { QuickCreateDialog } from "@/components/common/QuickCreateDialog";
 import { MissedTasksSheet } from "@/components/common/MissedTasksSheet";
+import { useLanguage } from "@/context/LanguageContext";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const { toggleCollapse, toggleMobile, isCollapsed } = useSidebar();
   const { theme, setTheme } = useTheme();
   const { user } = useAuthStore();
+  const { t, locale, setLocale } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const name = user?.name || "User CRM";
+  const name = user?.name || t("common.defaultUser");
   const initials = name
     .split(" ")
     .map((part) => part[0])
@@ -49,7 +57,7 @@ export function Header() {
       <button
         onClick={handleToggle}
         className="p-2 -ml-2 mr-3 rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer flex items-center justify-center shrink-0"
-        title={isCollapsed ? "Buka Sidebar" : "Tutup Sidebar"}
+        title={isCollapsed ? t("header.openSidebar") : t("header.closeSidebar")}
       >
         <span className="material-symbols-outlined">
           {isCollapsed ? "menu" : "menu_open"}
@@ -66,19 +74,52 @@ export function Header() {
           className="hidden sm:flex items-center gap-2 rounded-full whitespace-nowrap shadow-sm text-xs font-semibold"
         >
           <span className="material-symbols-outlined text-[18px]">add</span>
-          Quick Create
+          {t("header.quickCreate")}
         </Button>
 
         {/* Notifications Icon Button */}
         <button
           onClick={() => setNotificationsOpen(true)}
           className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors relative cursor-pointer"
-          title="Tugas Terlewat"
-          aria-label="Tugas Terlewat"
+          title={t("header.missedTasks")}
+          aria-label={t("header.missedTasks")}
         >
           <span className="material-symbols-outlined">notifications</span>
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full border border-surface-container-lowest"></span>
         </button>
+
+        {/* Language Switcher */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors relative cursor-pointer flex items-center justify-center"
+              title={t("header.language")}
+              aria-label={t("header.language")}
+            >
+              <span className="material-symbols-outlined">translate</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-36">
+            <DropdownMenuItem
+              onClick={() => setLocale("id")}
+              className={locale === "id" ? "text-primary font-semibold" : ""}
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                {locale === "id" ? "check_circle" : "radio_button_unchecked"}
+              </span>
+              {t("header.languageId")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setLocale("en")}
+              className={locale === "en" ? "text-primary font-semibold" : ""}
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                {locale === "en" ? "check_circle" : "radio_button_unchecked"}
+              </span>
+              {t("header.languageEn")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Theme Toggle Button */}
         <button
@@ -92,8 +133,8 @@ export function Header() {
           className="p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors relative cursor-pointer flex items-center justify-center"
           title={
             mounted && theme === "dark"
-              ? "Ubah ke mode terang"
-              : "Ubah ke mode gelap"
+              ? t("header.switchLight")
+              : t("header.switchDark")
           }
         >
           {mounted && theme === "dark" ? (

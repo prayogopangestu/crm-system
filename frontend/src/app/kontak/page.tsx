@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React, { useEffect, useMemo } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -13,16 +13,17 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/Avatar"
 import { ContactStatus } from "@/types/crm"
 import { useContactStore } from "@/hooks/useContactStore"
 import { toast } from "sonner"
+import { useLanguage } from "@/context/LanguageContext"
 
-const contactSchema = z.object({
-  name: z.string().min(2, "Nama lengkap minimal harus 2 karakter"),
-  email: z.string().email("Format email tidak valid").min(1, "Email wajib diisi"),
-  company: z.string().min(2, "Nama perusahaan minimal harus 2 karakter"),
-  role: z.string().optional(),
-  status: z.enum(["Negosiasi", "Menang", "Prospek Awal", "Proposal", "Kalah", "Kualifikasi"])
-})
+type ContactInput = {
+  name: string
+  email: string
+  company: string
+  role?: string
+  status: "Negosiasi" | "Menang" | "Prospek Awal" | "Proposal" | "Kalah" | "Kualifikasi"
+}
 
-type ContactInput = z.infer<typeof contactSchema>
+const CONTACT_STATUS_VALUES = ["Negosiasi", "Menang", "Prospek Awal", "Proposal", "Kalah", "Kualifikasi"] as const
 
 export default function KontakPage() {
   const {
@@ -39,6 +40,19 @@ export default function KontakPage() {
     loadContacts,
     addContact
   } = useContactStore()
+  const { t } = useLanguage()
+
+  const contactSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(2, t("contacts.validation.nameMin")),
+        email: z.string().email(t("contacts.validation.emailInvalid")).min(1, t("contacts.validation.emailRequired")),
+        company: z.string().min(2, t("contacts.validation.companyMin")),
+        role: z.string().optional(),
+        status: z.enum(CONTACT_STATUS_VALUES),
+      }),
+    [t],
+  )
 
   const { register, control, handleSubmit, reset, formState: { errors } } = useForm<ContactInput>({
     resolver: zodResolver(contactSchema),
@@ -80,10 +94,10 @@ export default function KontakPage() {
   const onSubmit = async (data: ContactInput) => {
     try {
       await addContact(data)
-      toast.success("Kontak berhasil disimpan")
+      toast.success(t("toast.contactSaved"))
       reset()
     } catch {
-      toast.error("Kontak gagal disimpan")
+      toast.error(t("toast.contactSaveError"))
     }
   }
 
@@ -93,10 +107,10 @@ export default function KontakPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-stack-lg gap-stack-md">
         <div>
           <h2 className="font-headline-md text-[24px] font-semibold text-on-surface">
-            Kontak &amp; Perusahaan
+            {t("contacts.title")}
           </h2>
           <p className="font-body-md text-sm text-on-surface-variant mt-1">
-            Kelola data klien dan prospek B2B Anda.
+            {t("contacts.subtitle")}
           </p>
         </div>
         <Button
@@ -105,7 +119,7 @@ export default function KontakPage() {
           className="flex items-center gap-2 rounded-lg text-sm font-semibold shadow-sm"
         >
           <span className="material-symbols-outlined text-[20px]">add</span>
-          Tambah Kontak
+          {t("contacts.addContact")}
         </Button>
       </div>
 
@@ -125,7 +139,7 @@ export default function KontakPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
-            placeholder="Cari kontak, email, atau perusahaan..."
+            placeholder={t("contacts.searchPlaceholder")}
           />
         </div>
         <div className="w-full sm:w-48">
@@ -134,16 +148,16 @@ export default function KontakPage() {
             onValueChange={setStatusFilter}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Pilih Status" />
+              <SelectValue placeholder={t("contacts.selectStatus")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Semua">Semua Status</SelectItem>
-              <SelectItem value="Prospek Awal">Prospek Awal</SelectItem>
-              <SelectItem value="Kualifikasi">Kualifikasi</SelectItem>
-              <SelectItem value="Proposal">Proposal</SelectItem>
-              <SelectItem value="Negosiasi">Negosiasi</SelectItem>
-              <SelectItem value="Menang">Menang</SelectItem>
-              <SelectItem value="Kalah">Kalah</SelectItem>
+              <SelectItem value="Semua">{t("contacts.allStatus")}</SelectItem>
+              <SelectItem value="Prospek Awal">{t("values.contactStatus.Prospek Awal")}</SelectItem>
+              <SelectItem value="Kualifikasi">{t("values.contactStatus.Kualifikasi")}</SelectItem>
+              <SelectItem value="Proposal">{t("values.contactStatus.Proposal")}</SelectItem>
+              <SelectItem value="Negosiasi">{t("values.contactStatus.Negosiasi")}</SelectItem>
+              <SelectItem value="Menang">{t("values.contactStatus.Menang")}</SelectItem>
+              <SelectItem value="Kalah">{t("values.contactStatus.Kalah")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -154,25 +168,25 @@ export default function KontakPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[250px]">Nama &amp; Email</TableHead>
-              <TableHead>Perusahaan</TableHead>
-              <TableHead className="hidden md:table-cell">Jabatan</TableHead>
-              <TableHead>Status Deal</TableHead>
-              <TableHead className="hidden lg:table-cell">Terakhir Dihubungi</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <TableHead className="w-[250px]">{t("contacts.colNameEmail")}</TableHead>
+              <TableHead>{t("contacts.colCompany")}</TableHead>
+              <TableHead className="hidden md:table-cell">{t("contacts.colRole")}</TableHead>
+              <TableHead>{t("contacts.colStatus")}</TableHead>
+              <TableHead className="hidden lg:table-cell">{t("contacts.colLastContact")}</TableHead>
+              <TableHead className="text-right">{t("common.action")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && contacts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-on-surface-variant/70">
-                  Memuat kontak dari backend...
+                  {t("contacts.loading")}
                 </TableCell>
               </TableRow>
             ) : filteredContacts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-8 text-on-surface-variant/70">
-                  Tidak ada kontak ditemukan.
+                  {t("contacts.notFound")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -198,7 +212,7 @@ export default function KontakPage() {
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusBadges[contact.status]}`}>
-                      {contact.status}
+                      {t(`values.contactStatus.${contact.status}`)}
                     </span>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-xs text-on-surface-variant">
@@ -218,7 +232,7 @@ export default function KontakPage() {
         {/* Pagination Footer */}
         <div className="bg-surface border-t border-outline-variant px-4 py-3 flex items-center justify-between">
           <span className="text-xs text-on-surface-variant font-medium">
-            Menampilkan {filteredContacts.length} dari {total} kontak
+            {t("contacts.showing", { shown: filteredContacts.length, total })}
           </span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
@@ -245,16 +259,16 @@ export default function KontakPage() {
               <span className="material-symbols-outlined">close</span>
             </button>
             <h3 className="font-headline-sm text-lg font-bold text-on-surface mb-4">
-              Tambah Kontak Baru
+              {t("contacts.addTitle")}
             </h3>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Nama Lengkap
+                  {t("contacts.fullName")}
                 </label>
                 <Input
                   {...register("name")}
-                  placeholder="Nama Lengkap Klien"
+                  placeholder={t("contacts.fullNamePlaceholder")}
                   className={errors.name ? "border-red-500" : ""}
                 />
                 {errors.name && (
@@ -263,7 +277,7 @@ export default function KontakPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Email
+                  {t("contacts.email")}
                 </label>
                 <Input
                   type="email"
@@ -278,11 +292,11 @@ export default function KontakPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                    Perusahaan
+                    {t("contacts.company")}
                   </label>
                   <Input
                     {...register("company")}
-                    placeholder="Nama Perusahaan"
+                    placeholder={t("contacts.companyPlaceholder")}
                     className={errors.company ? "border-red-500" : ""}
                   />
                   {errors.company && (
@@ -291,17 +305,17 @@ export default function KontakPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                    Jabatan
+                    {t("contacts.role")}
                   </label>
                   <Input
                     {...register("role")}
-                    placeholder="VP Sales, Manager..."
+                    placeholder={t("contacts.rolePlaceholder")}
                   />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Status Kesepakatan (Deal)
+                  {t("contacts.dealStatus")}
                 </label>
                 <Controller
                   name="status"
@@ -312,15 +326,15 @@ export default function KontakPage() {
                       onValueChange={field.onChange}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Pilih Status" />
+                        <SelectValue placeholder={t("contacts.selectStatus")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Prospek Awal">Prospek Awal</SelectItem>
-                        <SelectItem value="Kualifikasi">Kualifikasi</SelectItem>
-                        <SelectItem value="Proposal">Proposal</SelectItem>
-                        <SelectItem value="Negosiasi">Negosiasi</SelectItem>
-                        <SelectItem value="Menang">Menang</SelectItem>
-                        <SelectItem value="Kalah">Kalah</SelectItem>
+                        <SelectItem value="Prospek Awal">{t("values.contactStatus.Prospek Awal")}</SelectItem>
+                        <SelectItem value="Kualifikasi">{t("values.contactStatus.Kualifikasi")}</SelectItem>
+                        <SelectItem value="Proposal">{t("values.contactStatus.Proposal")}</SelectItem>
+                        <SelectItem value="Negosiasi">{t("values.contactStatus.Negosiasi")}</SelectItem>
+                        <SelectItem value="Menang">{t("values.contactStatus.Menang")}</SelectItem>
+                        <SelectItem value="Kalah">{t("values.contactStatus.Kalah")}</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
@@ -338,10 +352,10 @@ export default function KontakPage() {
                     reset()
                   }}
                 >
-                  Batal
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" variant="default" disabled={isLoading}>
-                  {isLoading ? "Menyimpan..." : "Simpan Kontak"}
+                  {isLoading ? t("common.saving") : t("contacts.saveBtn")}
                 </Button>
               </div>
             </form>

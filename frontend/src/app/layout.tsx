@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { LayoutWrapper } from "@/components/common/LayoutWrapper"
 import { ThemeProvider } from "@/components/common/ThemeProvider"
+import { LanguageProvider } from "@/context/LanguageContext"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -29,7 +30,9 @@ export default function RootLayout({
       </head>
       <body className="font-sans bg-background text-on-background min-h-screen">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <LayoutWrapper>{children}</LayoutWrapper>
+          <LanguageProvider>
+            <LayoutWrapper>{children}</LayoutWrapper>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

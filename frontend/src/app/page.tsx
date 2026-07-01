@@ -25,6 +25,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
+import { useLanguage } from "@/context/LanguageContext"
 
 interface AreaTooltipProps {
   active?: boolean
@@ -33,13 +34,14 @@ interface AreaTooltipProps {
 }
 
 const CustomTooltip = ({ active, payload, label }: AreaTooltipProps) => {
+  const { t } = useLanguage()
   if (active && payload && payload.length) {
     return (
       <div className="bg-surface-container-lowest border border-outline-variant px-3 py-2 rounded-xl shadow-lg text-xs">
         <p className="font-bold text-on-surface mb-1">{label}</p>
         <p className="text-emerald-600 font-bold flex items-center gap-1">
           <span className="material-symbols-outlined text-[14px]">show_chart</span>
-          Konversi: {payload[0].value}%
+          {t("dashboard.conversionLabel", { value: payload[0].value })}
         </p>
       </div>
     )
@@ -255,6 +257,7 @@ function formatCompact(n: number): string {
 }
 
 export default function Dashboard() {
+  const { t } = useLanguage()
   const [mounted, setMounted] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -293,7 +296,7 @@ export default function Dashboard() {
         setStages(stageResult)
         setLeaders(leaderResult)
       } catch (error) {
-        setError(error instanceof Error ? error.message : "Gagal memuat dashboard")
+        setError(error instanceof Error ? error.message : t("dashboard.loadError"))
       } finally {
         setIsLoading(false)
       }
@@ -321,7 +324,7 @@ export default function Dashboard() {
       })
     } catch (error) {
       setTasks(previous)
-      setError(error instanceof Error ? error.message : "Gagal mengubah status tugas")
+    setError(error instanceof Error ? error.message : t("toast.taskToggleError"))
     }
   }
 
@@ -362,13 +365,13 @@ export default function Dashboard() {
         const total = items.reduce((sum, d) => sum + d.value, 0)
         return {
           key: stage.key,
-          name: stage.name || STAGE_META[stage.key]?.name || stage.key,
+          name: stage.name || t(`values.stage.${stage.key}`) || stage.key,
           color: STAGE_META[stage.key]?.color || "#6366f1",
           count: items.length,
           total,
         }
       })
-  }, [stages, deals])
+  }, [stages, deals, t])
   const maxStageTotal = stageDistribution.reduce((m, s) => Math.max(m, s.total), 0)
 
   return (
@@ -377,10 +380,10 @@ export default function Dashboard() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-headline-md text-[24px] text-on-surface font-semibold">
-            Dashboard Overview
+            {t("dashboard.title")}
           </h2>
           <p className="text-on-surface-variant font-body-md text-sm mt-1">
-            Ringkasan performa penjualan dan aktivitas hari ini.
+            {t("dashboard.subtitle")}
           </p>
         </div>
         <a
@@ -388,7 +391,7 @@ export default function Dashboard() {
           className="inline-flex items-center gap-1 rounded-lg border border-outline-variant bg-surface px-3 py-2 text-xs font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
         >
           <span className="material-symbols-outlined text-[16px]">insights</span>
-          Lihat Analitik Lengkap
+          {t("dashboard.fullAnalytics")}
         </a>
       </div>
 
@@ -402,7 +405,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard
           icon="person_add"
-          label="Total Prospek"
+          label={t("dashboard.statTotalLeads")}
           value={(stats?.totalLeads || 0).toLocaleString("id-ID")}
           trend={stats?.leadsTrend}
           accent={ACCENTS.primary}
@@ -410,7 +413,7 @@ export default function Dashboard() {
         />
         <StatCard
           icon="emoji_events"
-          label="Deal Menang"
+          label={t("dashboard.statDealWon")}
           value={String(stats?.dealWonCount || 0)}
           trend={stats?.wonTrend}
           accent={ACCENTS.emerald}
@@ -418,7 +421,7 @@ export default function Dashboard() {
         />
         <StatCard
           icon="payments"
-          label="Total Pendapatan"
+          label={t("dashboard.statTotalRevenue")}
           value={stats?.totalRevenue || "Rp 0"}
           trend={stats?.revenueTrend}
           accent={ACCENTS.amber}
@@ -426,9 +429,9 @@ export default function Dashboard() {
         />
         <StatCard
           icon="percent"
-          label="Tingkat Konversi"
+          label={t("dashboard.statConversion")}
           value={`${avgConversion}%`}
-          trend={latestConversion >= avgConversion ? `Bulan ini ${latestConversion}%` : `Bulan ini ${latestConversion}%`}
+          trend={`${t("dashboard.thisMonth")} ${latestConversion}%`}
           accent={ACCENTS.sky}
           delay={240}
         />
@@ -438,28 +441,28 @@ export default function Dashboard() {
       <div className="mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MiniStat
           icon="trending_up"
-          label="Deal Aktif"
+          label={t("dashboard.statActiveDeals")}
           value={String(activeDeals.length)}
-          sub={`${wonDeals.length} menang`}
+          sub={`${wonDeals.length} ${t("dashboard.won")}`}
           accent="text-primary"
         />
         <MiniStat
           icon="account_balance_wallet"
-          label="Nilai Pipeline"
+          label={t("dashboard.statPipelineValue")}
           value={formatCompact(pipelineValue)}
           accent="text-emerald-600 dark:text-emerald-400"
         />
         <MiniStat
           icon="sell"
-          label="Rata-rata Nilai Deal"
+          label={t("dashboard.statAvgDeal")}
           value={formatCompact(avgDealSize)}
           accent="text-amber-600 dark:text-amber-400"
         />
         <MiniStat
           icon="workspace_premium"
-          label="Win Rate"
+          label={t("dashboard.statWinRate")}
           value={`${winRate}%`}
-          sub={`${lostDeals.length} hilang`}
+          sub={`${lostDeals.length} ${t("dashboard.lost")}`}
           accent="text-sky-600 dark:text-sky-400"
         />
       </div>
@@ -471,10 +474,10 @@ export default function Dashboard() {
           <div className="flex flex-wrap justify-between items-start gap-3 mb-5">
             <div>
               <h3 className="font-headline-sm text-lg font-semibold text-on-surface">
-                Konversi Penjualan Bulanan
+                {t("dashboard.conversionTitle")}
               </h3>
               <p className="text-on-surface-variant text-xs mt-0.5">
-                Persentase konversi prospek menjadi deal
+                {t("dashboard.conversionSubtitle")}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -482,14 +485,14 @@ export default function Dashboard() {
               <div className="hidden sm:flex items-center gap-3 mr-1">
                 <div className="text-right">
                   <p className="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">
-                    Rata-rata
+                    {t("dashboard.average")}
                   </p>
                   <p className="text-sm font-bold text-on-surface">{avgConversion}%</p>
                 </div>
                 <div className="h-8 w-px bg-outline-variant" />
                 <div className="text-right">
                   <p className="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">
-                    Bulan Ini
+                    {t("dashboard.thisMonth")}
                   </p>
                   <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
                     {latestConversion}%
@@ -548,7 +551,7 @@ export default function Dashboard() {
                 <span className="material-symbols-outlined animate-spin mr-2 text-[18px]">
                   progress_activity
                 </span>
-                Memuat grafik...
+                {t("dashboard.loadingChart")}
               </div>
             )}
           </div>
@@ -559,13 +562,13 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
               <h3 className="font-headline-sm text-base font-semibold text-on-surface">
-                Tugas Hari Ini
+                {t("dashboard.todayTasks")}
               </h3>
             </div>
             {urgentCount > 0 && (
               <span className="inline-flex items-center gap-1 bg-error-container text-on-error-container text-[11px] px-2.5 py-1 rounded-full font-semibold">
                 <span className="material-symbols-outlined text-[13px]">priority_high</span>
-                {urgentCount} Penting
+                {t("dashboard.important", { count: urgentCount })}
               </span>
             )}
           </div>
@@ -592,7 +595,7 @@ export default function Dashboard() {
                         "w-1.5 h-1.5 rounded-full flex-shrink-0",
                         PRIORITY_DOT[task.priority] || "bg-outline-variant"
                       )}
-                      title={`Prioritas ${task.priority}`}
+                      title={t("dashboard.priorityTitle", { priority: t(`values.priority.${task.priority}`) })}
                     />
                     <p
                       className={cn(
@@ -614,7 +617,7 @@ export default function Dashboard() {
                 <span className="material-symbols-outlined text-[32px] text-outline-variant">
                   task_alt
                 </span>
-                <p className="text-xs text-on-surface-variant">Tidak ada tugas hari ini</p>
+                <p className="text-xs text-on-surface-variant">{t("dashboard.noTasksToday")}</p>
               </li>
             )}
           </ul>
@@ -628,14 +631,14 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-headline-sm text-base font-semibold text-on-surface">
-                Deal Teratas
+                {t("dashboard.hotDealsTitle")}
               </h3>
               <p className="text-on-surface-variant text-xs mt-0.5">
-                Deal dengan nilai tertinggi di pipeline
+                {t("dashboard.hotDealsSubtitle")}
               </p>
             </div>
             <a href="/pipeline" className="text-primary text-xs font-semibold hover:underline inline-flex items-center gap-0.5">
-              Pipeline
+              {t("nav.pipeline")}
               <span className="material-symbols-outlined text-[14px]">chevron_right</span>
             </a>
           </div>
@@ -643,7 +646,7 @@ export default function Dashboard() {
             {hotDeals.length === 0 && !isLoading && (
               <div className="py-8 flex flex-col items-center justify-center gap-2 text-center">
                 <span className="material-symbols-outlined text-[32px] text-outline-variant">trending_up</span>
-                <p className="text-xs text-on-surface-variant">Belum ada deal</p>
+                <p className="text-xs text-on-surface-variant">{t("dashboard.noDeals")}</p>
               </div>
             )}
             {hotDeals.map((deal, idx) => {
@@ -674,7 +677,7 @@ export default function Dashboard() {
                   {stageMeta && (
                     <span className="hidden md:inline-flex flex-shrink-0 items-center gap-1 text-[11px] font-semibold text-on-surface-variant">
                       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: stageMeta.color }} />
-                      {stageMeta.name}
+                      {t(`values.stage.${deal.stage}`)}
                     </span>
                   )}
                   <p className="flex-shrink-0 text-sm font-bold text-primary">
@@ -691,12 +694,12 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-headline-sm text-base font-semibold text-on-surface">
-                Top Performer
+                {t("dashboard.topPerformer")}
               </h3>
-              <p className="text-on-surface-variant text-xs mt-0.5">Bulan ini</p>
+              <p className="text-on-surface-variant text-xs mt-0.5">{t("dashboard.thisMonth")}</p>
             </div>
             <a href="/laporan" className="text-primary text-xs font-semibold hover:underline inline-flex items-center gap-0.5">
-              Detail
+              {t("dashboard.detail")}
               <span className="material-symbols-outlined text-[14px]">chevron_right</span>
             </a>
           </div>
@@ -704,7 +707,7 @@ export default function Dashboard() {
             {leaders.length === 0 && !isLoading && (
               <li className="py-8 flex flex-col items-center justify-center gap-2 text-center">
                 <span className="material-symbols-outlined text-[32px] text-outline-variant">leaderboard</span>
-                <p className="text-xs text-on-surface-variant">Belum ada data performa</p>
+                <p className="text-xs text-on-surface-variant">{t("dashboard.noPerformance")}</p>
               </li>
             )}
             {leaders.slice(0, 5).map((rep) => (
@@ -760,10 +763,10 @@ export default function Dashboard() {
         <Card className="lg:col-span-2 p-5 flex flex-col w-full">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-headline-sm text-base font-semibold text-on-surface">
-              Aktivitas Terbaru
+              {t("dashboard.recentActivity")}
             </h3>
             <a href="/tugas" className="text-primary text-xs font-semibold hover:underline inline-flex items-center gap-0.5">
-              Lihat Semua
+              {t("dashboard.viewAll")}
               <span className="material-symbols-outlined text-[14px]">chevron_right</span>
             </a>
           </div>
@@ -799,7 +802,7 @@ export default function Dashboard() {
             ))}
             {activities.length === 0 && !isLoading && (
               <li className="py-8 text-center text-xs text-on-surface-variant">
-                Belum ada aktivitas
+                {t("dashboard.noActivity")}
               </li>
             )}
           </ul>
@@ -810,10 +813,10 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-4">
             <div>
               <h3 className="font-headline-sm text-base font-semibold text-on-surface">
-                Distribusi Pipeline
+                {t("dashboard.pipelineDistribution")}
               </h3>
               <p className="text-on-surface-variant text-xs mt-0.5">
-                {activeDeals.length} deal aktif · {formatCompact(pipelineValue)}
+                {t("dashboard.pipelineDistributionSubtitle", { count: activeDeals.length, value: formatCompact(pipelineValue) })}
               </p>
             </div>
           </div>
@@ -821,7 +824,7 @@ export default function Dashboard() {
             {stageDistribution.length === 0 && !isLoading && (
               <div className="py-8 flex flex-col items-center justify-center gap-2 text-center">
                 <span className="material-symbols-outlined text-[32px] text-outline-variant">funnel</span>
-                <p className="text-xs text-on-surface-variant">Belum ada data pipeline</p>
+                <p className="text-xs text-on-surface-variant">{t("dashboard.noPipelineData")}</p>
               </div>
             )}
             {stageDistribution.map((stage) => {

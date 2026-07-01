@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
@@ -10,23 +10,37 @@ import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { useAuthStore } from "@/hooks/useAuthStore"
+import { useLanguage } from "@/context/LanguageContext"
 
-const registerSchema = z.object({
-  fullName: z.string().min(2, "Nama lengkap minimal harus 2 karakter"),
-  companyName: z.string().min(2, "Nama perusahaan minimal harus 2 karakter"),
-  email: z.string().email("Format email tidak valid").min(1, "Email wajib diisi"),
-  password: z.string().min(6, "Kata sandi minimal harus 6 karakter"),
-  confirmPassword: z.string().min(6, "Konfirmasi kata sandi minimal harus 6 karakter")
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Konfirmasi kata sandi tidak cocok",
-  path: ["confirmPassword"]
-})
-
-type RegisterInput = z.infer<typeof registerSchema>
+type RegisterInput = {
+  fullName: string
+  companyName: string
+  email: string
+  password: string
+  confirmPassword: string
+}
 
 export default function DaftarPage() {
   const router = useRouter()
   const { isLoading, error, setError, register: registerUser } = useAuthStore()
+  const { t } = useLanguage()
+
+  const registerSchema = useMemo(
+    () =>
+      z
+        .object({
+          fullName: z.string().min(2, t("auth.validation.fullNameMin")),
+          companyName: z.string().min(2, t("auth.validation.companyMin")),
+          email: z.string().email(t("auth.validation.emailInvalid")).min(1, t("auth.validation.emailRequired")),
+          password: z.string().min(6, t("auth.validation.passwordMin")),
+          confirmPassword: z.string().min(6, t("auth.validation.confirmMin")),
+        })
+        .refine((data) => data.password === data.confirmPassword, {
+          message: t("auth.validation.confirmMismatch"),
+          path: ["confirmPassword"],
+        }),
+    [t],
+  )
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
@@ -52,7 +66,7 @@ export default function DaftarPage() {
   }
 
   const handleSocialRegister = () => {
-    setError("Registrasi sosial belum tersambung ke backend.")
+    setError(t("auth.register.socialNotConnected"))
   }
 
   return (
@@ -62,8 +76,8 @@ export default function DaftarPage() {
         <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-on-primary font-bold shadow-md mb-3">
           <span className="material-symbols-outlined text-[28px]">domain</span>
         </div>
-        <h2 className="text-2xl font-bold text-on-surface tracking-tight">Daftar Akun Baru</h2>
-        <p className="text-xs text-on-surface-variant mt-1">Mulai kelola sales &amp; hubungan klien Anda sekarang</p>
+        <h2 className="text-2xl font-bold text-on-surface tracking-tight">{t("auth.register.title")}</h2>
+        <p className="text-xs text-on-surface-variant mt-1">{t("auth.register.tagline")}</p>
       </div>
 
       {error && (
@@ -77,12 +91,12 @@ export default function DaftarPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-            Nama Lengkap
+            {t("auth.register.fullName")}
           </label>
           <Input
             type="text"
             {...register("fullName")}
-            placeholder="Nama Lengkap"
+            placeholder={t("auth.register.fullName")}
             className={errors.fullName ? "border-red-500" : ""}
           />
           {errors.fullName && (
@@ -92,7 +106,7 @@ export default function DaftarPage() {
 
         <div>
           <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-            Nama Perusahaan
+            {t("auth.register.companyName")}
           </label>
           <Input
             type="text"
@@ -107,7 +121,7 @@ export default function DaftarPage() {
 
         <div>
           <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-            Alamat Email
+            {t("auth.register.emailLabel")}
           </label>
           <Input
             type="email"
@@ -122,7 +136,7 @@ export default function DaftarPage() {
 
         <div>
           <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-            Kata Sandi
+            {t("auth.register.passwordLabel")}
           </label>
           <Input
             type="password"
@@ -137,7 +151,7 @@ export default function DaftarPage() {
 
         <div>
           <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-            Konfirmasi Kata Sandi
+            {t("auth.register.confirmPassword")}
           </label>
           <Input
             type="password"
@@ -156,7 +170,7 @@ export default function DaftarPage() {
           className="w-full font-semibold py-2.5 mt-2"
           disabled={isLoading}
         >
-          {isLoading ? "Membuat Akun..." : "Daftar Akun"}
+          {isLoading ? t("auth.register.submitting") : t("auth.register.submit")}
         </Button>
       </form>
 
@@ -167,7 +181,7 @@ export default function DaftarPage() {
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-surface-container-lowest px-2 text-on-surface-variant font-medium text-[10px]">
-            Atau daftar dengan
+            {t("auth.register.orWith")}
           </span>
         </div>
       </div>
@@ -218,9 +232,9 @@ export default function DaftarPage() {
 
       {/* Redirect to Login */}
       <div className="mt-6 text-center text-xs text-on-surface-variant font-medium">
-        Sudah memiliki akun?{" "}
+        {t("auth.register.hasAccount")}{" "}
         <Link href="/login" className="text-primary font-bold hover:underline">
-          Masuk di sini
+          {t("auth.register.loginHere")}
         </Link>
       </div>
     </Card>

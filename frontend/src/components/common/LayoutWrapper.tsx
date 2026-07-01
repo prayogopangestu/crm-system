@@ -8,6 +8,7 @@ import { SidebarProvider, useSidebar } from "@/context/SidebarContext"
 import { Toaster } from "@/components/ui/sonner"
 import { getStoredToken } from "@/lib/api"
 import { useAuthStore } from "@/hooks/useAuthStore"
+import { useLanguage } from "@/context/LanguageContext"
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -15,6 +16,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const isAuthPage = pathname === "/login" || pathname === "/daftar"
   const { isCollapsed } = useSidebar()
   const { hydrate } = useAuthStore()
+  const { t } = useLanguage()
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -33,7 +35,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-3">
         <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <span className="text-xs text-on-surface-variant font-medium">Memuat sistem...</span>
+        <span className="text-xs text-on-surface-variant font-medium">{t("layout.loadingSystem")}</span>
       </div>
     )
   }
@@ -47,7 +49,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center gap-3">
         <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <span className="text-xs text-on-surface-variant font-medium">Mengarahkan ke halaman masuk...</span>
+        <span className="text-xs text-on-surface-variant font-medium">{t("layout.redirecting")}</span>
       </div>
     )
   }

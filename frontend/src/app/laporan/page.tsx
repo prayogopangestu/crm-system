@@ -16,6 +16,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { toast } from "sonner"
+import { useLanguage } from "@/context/LanguageContext"
 
 interface PieTooltipProps {
   active?: boolean
@@ -23,13 +24,14 @@ interface PieTooltipProps {
 }
 
 const CustomPieTooltip = ({ active, payload }: PieTooltipProps) => {
+  const { t } = useLanguage()
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
       <div className="bg-surface-container-lowest border border-outline-variant p-3 rounded-lg shadow-md text-xs">
         <p className="font-bold text-on-surface mb-1">{data.name}</p>
         <p className="text-primary font-semibold">
-          Deals: {data.value} ({data.percentage}%)
+          {t("reports.tooltipDeals", { value: data.value, percentage: data.percentage })}
         </p>
       </div>
     )
@@ -38,6 +40,7 @@ const CustomPieTooltip = ({ active, payload }: PieTooltipProps) => {
 }
 
 export default function LaporanPage() {
+  const { t } = useLanguage()
   const [mounted, setMounted] = useState(false)
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([])
   const [pieData, setPieData] = useState<LostReason[]>([])
@@ -63,7 +66,7 @@ export default function LaporanPage() {
         setPieData(lostReasons)
         setPerformanceGoals(goals)
       } catch (error) {
-        setError(error instanceof Error ? error.message : "Gagal memuat laporan")
+        setError(error instanceof Error ? error.message : t("reports.loadError"))
       }
     }
     const timer = window.setTimeout(() => {
@@ -75,18 +78,18 @@ export default function LaporanPage() {
   const handleExportCSV = async () => {
     try {
       await apiDownload("/api/reports/export/csv", "crm-report.csv")
-      toast.success("Data laporan diekspor sebagai CSV")
+      toast.success(t("toast.reportCsv"))
     } catch {
-      toast.error("Export CSV gagal")
+      toast.error(t("toast.reportCsvError"))
     }
   }
 
   const handleExportPDF = async () => {
     try {
       await apiDownload("/api/reports/export/pdf", "crm-report.pdf")
-      toast.success("Dokumen laporan diunduh sebagai PDF")
+      toast.success(t("toast.reportPdf"))
     } catch {
-      toast.error("Export PDF gagal")
+      toast.error(t("toast.reportPdfError"))
     }
   }
 
@@ -98,10 +101,10 @@ export default function LaporanPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-stack-lg">
         <div>
           <h2 className="font-headline-md text-[24px] font-semibold text-on-surface">
-            Laporan &amp; Analitik
+            {t("reports.title")}
           </h2>
           <p className="text-sm text-on-surface-variant mt-1">
-            Tinjauan performa tim dan analisis penjualan bulan ini.
+            {t("reports.subtitle")}
           </p>
         </div>
         <div className="flex gap-3">
@@ -111,7 +114,7 @@ export default function LaporanPage() {
             className="flex items-center gap-2 text-sm font-semibold whitespace-nowrap cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">file_download</span>
-            Export CSV
+            {t("reports.exportCsv")}
           </Button>
           <Button
             onClick={handleExportPDF}
@@ -119,7 +122,7 @@ export default function LaporanPage() {
             className="flex items-center gap-2 text-sm font-semibold whitespace-nowrap cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-            Export PDF
+            {t("reports.exportPdf")}
           </Button>
         </div>
       </div>
@@ -135,7 +138,7 @@ export default function LaporanPage() {
         <Card className="lg:col-span-2 p-4 flex flex-col">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-headline-sm text-base font-semibold text-on-surface">
-              Performa Tim (Leaderboard)
+              {t("reports.leaderboard")}
             </h3>
             <div className="w-36">
               <Select
@@ -143,11 +146,11 @@ export default function LaporanPage() {
                 onValueChange={setPeriod}
               >
                 <SelectTrigger className="w-full text-xs">
-                  <SelectValue placeholder="Pilih Periode" />
+                  <SelectValue placeholder={t("reports.selectPeriod")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Bulan Ini">Bulan Ini</SelectItem>
-                  <SelectItem value="Bulan Lalu">Bulan Lalu</SelectItem>
+                  <SelectItem value="Bulan Ini">{t("values.period.Bulan Ini")}</SelectItem>
+                  <SelectItem value="Bulan Lalu">{t("values.period.Bulan Lalu")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -156,7 +159,7 @@ export default function LaporanPage() {
             <ul className="flex flex-col gap-4">
               {leaderboardData.length === 0 && (
                 <li className="p-4 text-center text-xs text-on-surface-variant">
-                  Belum ada data performa.
+                  {t("reports.noPerformance")}
                 </li>
               )}
               {leaderboardData.map((rep) => (
@@ -199,7 +202,7 @@ export default function LaporanPage() {
         {/* Deal Lost Reason (Recharts Pie Chart) */}
         <Card className="p-4 flex flex-col">
           <h3 className="font-headline-sm text-base font-semibold text-on-surface mb-6">
-            Alasan Deal Lost
+            {t("reports.lostReasons")}
           </h3>
           <div className="flex-1 flex flex-col items-center justify-center">
             {mounted ? (
@@ -225,19 +228,19 @@ export default function LaporanPage() {
                 {/* Center Text inside Donut Chart */}
                 <div className="absolute flex flex-col items-center justify-center pointer-events-none">
                   <span className="font-headline-md text-xl font-bold text-on-surface leading-none">{totalLostDeals}</span>
-                  <span className="text-[8px] text-on-surface-variant font-bold uppercase tracking-wider mt-1">Total Deals</span>
+                  <span className="text-[8px] text-on-surface-variant font-bold uppercase tracking-wider mt-1">{t("reports.totalDeals")}</span>
                 </div>
               </div>
             ) : (
               <div className="w-32 h-32 flex items-center justify-center text-xs text-on-surface-variant font-medium">
-                Memuat grafik...
+                {t("reports.loadingChart")}
               </div>
             )}
 
             {/* Legends */}
             <div className="w-full mt-6 flex flex-col gap-2.5">
               {pieData.length === 0 && (
-                <div className="text-xs text-on-surface-variant text-center">Belum ada deal lost.</div>
+                <div className="text-xs text-on-surface-variant text-center">{t("reports.noLostDeals")}</div>
               )}
               {pieData.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between text-xs font-semibold">
@@ -256,22 +259,22 @@ export default function LaporanPage() {
       {/* Target vs Pencapaian Table */}
       <Card className="p-4">
         <h3 className="font-headline-sm text-base font-semibold text-on-surface mb-4">
-          Target vs Pencapaian Bulanan
+          {t("reports.targetVsActual")}
         </h3>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Bulan</TableHead>
-              <TableHead>Target (Goal)</TableHead>
-              <TableHead>Pencapaian (Actual)</TableHead>
-              <TableHead>Status Pencapaian</TableHead>
+              <TableHead>{t("reports.colMonth")}</TableHead>
+              <TableHead>{t("reports.colTarget")}</TableHead>
+              <TableHead>{t("reports.colActual")}</TableHead>
+              <TableHead>{t("reports.colStatus")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {performanceGoals.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-8 text-on-surface-variant/70">
-                  Belum ada target performa.
+                  {t("reports.noGoals")}
                 </TableCell>
               </TableRow>
             )}

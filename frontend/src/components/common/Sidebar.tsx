@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/hooks/useAuthStore";
 import { useTaskStore } from "@/hooks/useTaskStore";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface NavItem {
   name: string;
@@ -27,8 +28,9 @@ interface NavItem {
 export function Sidebar() {
   const pathname = usePathname();
   const { isCollapsed, isMobileOpen, closeMobile } = useSidebar();
-  const { user, logout } = useAuthStore();
+  const { logout } = useAuthStore();
   const { tasks, loadTasks } = useTaskStore();
+  const { t } = useLanguage();
 
   useEffect(() => {
     void loadTasks();
@@ -40,31 +42,23 @@ export function Sidebar() {
   );
 
   const navItems: NavItem[] = [
-    { name: "Dashboard", href: "/", icon: Home },
-    { name: "Kontak & Perusahaan", href: "/kontak", icon: User },
-    { name: "Pipeline Penjualan", href: "/pipeline", icon: FileText },
+    { name: t("nav.dashboard"), href: "/", icon: Home },
+    { name: t("nav.contacts"), href: "/kontak", icon: User },
+    { name: t("nav.pipeline"), href: "/pipeline", icon: FileText },
     {
-      name: "Tugas & Aktivitas",
+      name: t("nav.tasks"),
       href: "/tugas",
       icon: Bell,
       badge: todayTasksCount,
     },
-    { name: "Laporan", href: "/laporan", icon: BarChart3 },
-    { name: "Pengaturan", href: "/pengaturan", icon: Settings },
+    { name: t("nav.reports"), href: "/laporan", icon: BarChart3 },
+    { name: t("nav.settings"), href: "/pengaturan", icon: Settings },
   ];
 
   const handleLogout = () => {
     logout(() => undefined);
     closeMobile();
   };
-
-  const name = user?.name || "User CRM";
-  const initials = name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .substring(0, 2)
-    .toUpperCase();
 
   return (
     <>
@@ -103,10 +97,10 @@ export function Sidebar() {
             )}
           >
             <h1 className="font-headline-sm text-[15px] font-bold text-slate-800 dark:text-white tracking-tight leading-none">
-              CRM Enterprise
+              {t("common.appName")}
             </h1>
             <p className="font-label-sm text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-none">
-              Sistem Manajemen Sales
+              {t("common.appTagline")}
             </p>
           </div>
         </div>
@@ -196,7 +190,7 @@ export function Sidebar() {
                 ? "justify-center px-2.5 py-2.5"
                 : "gap-3.5 px-3.5 py-2.5",
             )}
-            title={isCollapsed ? "Keluar" : undefined}
+            title={isCollapsed ? t("nav.logout") : undefined}
           >
             <LogOut className="h-5 w-5 shrink-0" />
             <span
@@ -205,7 +199,7 @@ export function Sidebar() {
                 isCollapsed ? "w-0 opacity-0 ml-0" : "w-auto opacity-100",
               )}
             >
-              Keluar
+              {t("nav.logout")}
             </span>
           </Link>
         </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -11,21 +11,33 @@ import { Checkbox } from "@/components/ui/Checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { apiRequest } from "@/lib/api"
 import { TeamMember, UserProfile } from "@/types/crm"
+import { useLanguage } from "@/context/LanguageContext"
 
-const step2Schema = z.object({
-  type: z.enum(["Meeting", "Call", "Proposal", "Other"]),
-  time: z.string().min(1, "Waktu wajib diisi"),
-  priority: z.enum(["Tinggi", "Sedang", "Rendah"]),
-  assignee: z.string().min(1, "Penanggung jawab wajib dipilih"),
-  completedDirectly: z.boolean()
-})
-
-type Step2Input = z.infer<typeof step2Schema>
+type Step2Input = {
+  type: "Meeting" | "Call" | "Proposal" | "Other"
+  time: string
+  priority: "Tinggi" | "Sedang" | "Rendah"
+  assignee: string
+  completedDirectly: boolean
+}
 
 export function Step2Config() {
   const { formData, updateFormData, setStep } = useFormStore()
+  const { t } = useLanguage()
   const [assignees, setAssignees] = useState<Array<{ id: string; name: string }>>([])
-  
+
+  const step2Schema = useMemo(
+    () =>
+      z.object({
+        type: z.enum(["Meeting", "Call", "Proposal", "Other"]),
+        time: z.string().min(1, t("quickCreate.validation.timeRequired")),
+        priority: z.enum(["Tinggi", "Sedang", "Rendah"]),
+        assignee: z.string().min(1, t("quickCreate.validation.assigneeRequired")),
+        completedDirectly: z.boolean(),
+      }),
+    [t],
+  )
+
   const { register, control, handleSubmit, formState: { errors } } = useForm<Step2Input>({
     resolver: zodResolver(step2Schema),
     defaultValues: {
@@ -59,7 +71,7 @@ export function Step2Config() {
 
   const onSubmit = (data: Step2Input) => {
     updateFormData(data)
-    setStep(3) // Lanjut ke step 3
+    setStep(3)
   }
 
   return (
@@ -69,7 +81,7 @@ export function Step2Config() {
         {/* Jenis Aktivitas */}
         <div>
           <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-            Jenis Aktivitas
+            {t("quickCreate.activityType")}
           </label>
           <Controller
             name="type"
@@ -77,13 +89,13 @@ export function Step2Config() {
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pilih Jenis" />
+                  <SelectValue placeholder={t("quickCreate.selectType")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Call">Panggilan Telepon (Call)</SelectItem>
-                  <SelectItem value="Meeting">Pertemuan (Meeting)</SelectItem>
-                  <SelectItem value="Proposal">Kirim Proposal</SelectItem>
-                  <SelectItem value="Other">Lainnya</SelectItem>
+                  <SelectItem value="Call">{t("values.taskType.Call")}</SelectItem>
+                  <SelectItem value="Meeting">{t("values.taskType.Meeting")}</SelectItem>
+                  <SelectItem value="Proposal">{t("values.taskType.Proposal")}</SelectItem>
+                  <SelectItem value="Other">{t("values.taskType.Other")}</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -96,7 +108,7 @@ export function Step2Config() {
         {/* Waktu */}
         <div>
           <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-            Waktu
+            {t("quickCreate.time")}
           </label>
           <Input
             type="time"
@@ -111,7 +123,7 @@ export function Step2Config() {
         {/* Prioritas */}
         <div>
           <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-            Prioritas
+            {t("quickCreate.priority")}
           </label>
           <Controller
             name="priority"
@@ -119,12 +131,12 @@ export function Step2Config() {
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pilih Prioritas" />
+                  <SelectValue placeholder={t("quickCreate.selectPriority")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Tinggi">Tinggi</SelectItem>
-                  <SelectItem value="Sedang">Sedang</SelectItem>
-                  <SelectItem value="Rendah">Rendah</SelectItem>
+                  <SelectItem value="Tinggi">{t("values.priority.Tinggi")}</SelectItem>
+                  <SelectItem value="Sedang">{t("values.priority.Sedang")}</SelectItem>
+                  <SelectItem value="Rendah">{t("values.priority.Rendah")}</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -140,7 +152,7 @@ export function Step2Config() {
         {/* Penanggung Jawab */}
         <div>
           <label className="block font-label-sm text-xs font-semibold text-on-surface-variant mb-1">
-            Penanggung Jawab
+            {t("quickCreate.assignee")}
           </label>
           <Controller
             name="assignee"
@@ -148,7 +160,7 @@ export function Step2Config() {
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pilih Penanggung Jawab" />
+                  <SelectValue placeholder={t("quickCreate.selectAssignee")} />
                 </SelectTrigger>
                 <SelectContent>
                   {assignees.map((assignee) => (
@@ -180,17 +192,17 @@ export function Step2Config() {
             )}
           />
           <label htmlFor="task-completed-directly" className="text-xs font-semibold text-on-surface-variant cursor-pointer select-none">
-            Tandai tugas ini langsung selesai (Logged Activity)
+            {t("quickCreate.markCompleted")}
           </label>
         </div>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="ghost" onClick={() => setStep(1)} className="cursor-pointer">
-          Kembali
+          {t("common.back")}
         </Button>
         <Button type="submit" variant="default" className="flex items-center gap-1.5 cursor-pointer">
-          Lanjut
+          {t("common.next")}
           <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
         </Button>
       </div>

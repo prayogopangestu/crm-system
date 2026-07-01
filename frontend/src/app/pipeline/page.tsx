@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React, { useEffect, useMemo } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -12,16 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DealPriority, DealStage, PipelineStage } from "@/types/crm"
 import { usePipelineStore } from "@/hooks/usePipelineStore"
 import { toast } from "sonner"
+import { useLanguage } from "@/context/LanguageContext"
 
-const dealSchema = z.object({
-  title: z.string().min(2, "Nama perusahaan/klien wajib diisi"),
-  company: z.string().min(2, "Deskripsi proyek/deal wajib diisi"),
-  value: z.string().min(1, "Nilai deal wajib diisi").refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, "Nilai deal harus berupa angka positif"),
-  priority: z.enum(["High", "Medium", "Low"]),
-  stage: z.enum(["lead", "contacted", "meeting", "negotiation", "won", "lost"])
-})
-
-type DealInput = z.infer<typeof dealSchema>
+type DealInput = {
+  title: string
+  company: string
+  value: string
+  priority: DealPriority
+  stage: DealStage
+}
 
 export default function PipelinePage() {
   const {
@@ -38,6 +37,22 @@ export default function PipelinePage() {
     addDeal,
     updateDealStage
   } = usePipelineStore()
+  const { t } = useLanguage()
+
+  const dealSchema = useMemo(
+    () =>
+      z.object({
+        title: z.string().min(2, t("pipeline.validation.titleMin")),
+        company: z.string().min(2, t("pipeline.validation.descMin")),
+        value: z
+          .string()
+          .min(1, t("pipeline.validation.valueRequired"))
+          .refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, t("pipeline.validation.valueNumber")),
+        priority: z.enum(["High", "Medium", "Low"]),
+        stage: z.enum(["lead", "contacted", "meeting", "negotiation", "won", "lost"]),
+      }),
+    [t],
+  )
 
   const { register, control, handleSubmit, reset, formState: { errors } } = useForm<DealInput>({
     resolver: zodResolver(dealSchema),
@@ -70,7 +85,7 @@ export default function PipelinePage() {
     if (!dealId) return
 
     updateDealStage(dealId, targetStage).catch(() => {
-      toast.error("Deal gagal dipindahkan")
+      toast.error(t("toast.dealMoveError"))
     })
     setDraggingId(null)
   }
@@ -84,10 +99,10 @@ export default function PipelinePage() {
         priority: data.priority,
         stage: data.stage,
       })
-      toast.success("Deal berhasil disimpan")
+      toast.success(t("toast.dealSaved"))
       reset()
     } catch {
-      toast.error("Deal gagal disimpan")
+      toast.error(t("toast.dealSaveError"))
     }
   }
 
@@ -116,10 +131,10 @@ export default function PipelinePage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-stack-lg shrink-0">
         <div>
           <h2 className="font-headline-md text-[24px] font-semibold text-on-surface">
-            Pipeline Penjualan
+            {t("pipeline.title")}
           </h2>
           <p className="font-body-md text-sm text-on-surface-variant mt-1">
-            Kelola dan pantau progres deal tim Anda dengan antarmuka seret-dan-lepas (*drag &amp; drop*).
+            {t("pipeline.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -129,7 +144,7 @@ export default function PipelinePage() {
             className="flex items-center gap-2 rounded-lg text-sm font-semibold shadow-sm ml-auto"
           >
             <span className="material-symbols-outlined text-[20px]">add</span>
-            Tambah Deal
+            {t("pipeline.addDeal")}
           </Button>
         </div>
       </div>
@@ -144,7 +159,7 @@ export default function PipelinePage() {
       <div className="flex-1 overflow-x-auto overflow-y-hidden kanban-scroll pb-4 -mx-gutter px-gutter">
         <div className="flex gap-6 h-full min-w-max items-start">
           {isLoading && deals.length === 0 && stages.length === 0 && (
-            <div className="text-sm text-on-surface-variant">Memuat pipeline dari backend...</div>
+            <div className="text-sm text-on-surface-variant">{t("pipeline.loading")}</div>
           )}
           {stages.map(stage => {
             const stageDeals = deals.filter(d => d.stage === stage.key)
@@ -163,7 +178,7 @@ export default function PipelinePage() {
                 <div className={`p-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface/50 rounded-t-xl border-t-4 ${borderClass(stage)}`}>
                   <div className="flex items-center gap-2">
                     <h3 className="font-label-md text-xs font-bold text-on-surface uppercase tracking-wider">
-                      {stage.name}
+                      {stage.name || t(`values.stage.${stage.key}`)}
                     </h3>
                     <span className="bg-surface-variant text-on-surface-variant px-2 py-0.5 rounded text-xs font-bold">
                       {stageDeals.length}
@@ -181,7 +196,7 @@ export default function PipelinePage() {
                       <span className="material-symbols-outlined text-outline text-xl mb-1">
                         inbox
                       </span>
-                      <p className="text-xs font-medium text-on-surface-variant">Tarik deal ke sini</p>
+                      <p className="text-xs font-medium text-on-surface-variant">{t("pipeline.dropHere")}</p>
                     </div>
                   ) : (
                     stageDeals.map(deal => (
@@ -193,7 +208,7 @@ export default function PipelinePage() {
                       >
                         <div className="flex justify-between items-start mb-2">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${priorityBadges[deal.priority]}`}>
-                            {deal.priority}
+                            {t(`values.dealPriority.${deal.priority}`)}
                           </span>
                           <button className="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                             <span className="material-symbols-outlined text-[16px]">more_vert</span>
@@ -238,16 +253,16 @@ export default function PipelinePage() {
               <span className="material-symbols-outlined">close</span>
             </button>
             <h3 className="font-headline-sm text-lg font-bold text-on-surface mb-4">
-              Tambah Deal Baru
+              {t("pipeline.addTitle")}
             </h3>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Nama Perusahaan / Klien
+                  {t("pipeline.titleLabel")}
                 </label>
                 <Input
                   {...register("title")}
-                  placeholder="Contoh: PT Telkomsel"
+                  placeholder={t("pipeline.titlePlaceholder")}
                   className={errors.title ? "border-red-500" : ""}
                 />
                 {errors.title && (
@@ -256,11 +271,11 @@ export default function PipelinePage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Deskripsi Proyek/Deal
+                  {t("pipeline.descLabel")}
                 </label>
                 <Input
                   {...register("company")}
-                  placeholder="Contoh: Pengadaan Cloud Server"
+                  placeholder={t("pipeline.descPlaceholder")}
                   className={errors.company ? "border-red-500" : ""}
                 />
                 {errors.company && (
@@ -270,12 +285,12 @@ export default function PipelinePage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                    Nilai Deal (Rupiah)
+                    {t("pipeline.valueLabel")}
                   </label>
                   <Input
                     type="number"
                     {...register("value")}
-                    placeholder="Contoh: 150000000"
+                    placeholder={t("pipeline.valuePlaceholder")}
                     className={errors.value ? "border-red-500" : ""}
                   />
                   {errors.value && (
@@ -284,7 +299,7 @@ export default function PipelinePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                    Prioritas
+                    {t("pipeline.priority")}
                   </label>
                   <Controller
                     name="priority"
@@ -295,12 +310,12 @@ export default function PipelinePage() {
                         onValueChange={field.onChange}
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Prioritas" />
+                          <SelectValue placeholder={t("pipeline.priority")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Low">Low</SelectItem>
-                          <SelectItem value="Medium">Medium</SelectItem>
-                          <SelectItem value="High">High</SelectItem>
+                          <SelectItem value="Low">{t("values.dealPriority.Low")}</SelectItem>
+                          <SelectItem value="Medium">{t("values.dealPriority.Medium")}</SelectItem>
+                          <SelectItem value="High">{t("values.dealPriority.High")}</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
@@ -312,7 +327,7 @@ export default function PipelinePage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Tahap Awal
+                  {t("pipeline.initialStage")}
                 </label>
                 <Controller
                   name="stage"
@@ -323,15 +338,15 @@ export default function PipelinePage() {
                       onValueChange={field.onChange}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Pilih Tahap" />
+                        <SelectValue placeholder={t("pipeline.selectStage")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="lead">Lead Masuk</SelectItem>
-                        <SelectItem value="contacted">Dihubungi</SelectItem>
-                        <SelectItem value="meeting">Meeting</SelectItem>
-                        <SelectItem value="negotiation">Negosiasi</SelectItem>
-                        <SelectItem value="won">Deal Won</SelectItem>
-                        <SelectItem value="lost">Deal Lost</SelectItem>
+                        <SelectItem value="lead">{t("values.stage.lead")}</SelectItem>
+                        <SelectItem value="contacted">{t("values.stage.contacted")}</SelectItem>
+                        <SelectItem value="meeting">{t("values.stage.meeting")}</SelectItem>
+                        <SelectItem value="negotiation">{t("values.stage.negotiation")}</SelectItem>
+                        <SelectItem value="won">{t("values.stage.won")}</SelectItem>
+                        <SelectItem value="lost">{t("values.stage.lost")}</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
@@ -349,10 +364,10 @@ export default function PipelinePage() {
                     reset()
                   }}
                 >
-                  Batal
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" variant="default" disabled={isLoading}>
-                  {isLoading ? "Menyimpan..." : "Simpan Deal"}
+                  {isLoading ? t("common.saving") : t("pipeline.saveBtn")}
                 </Button>
               </div>
             </form>

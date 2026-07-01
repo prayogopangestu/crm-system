@@ -11,6 +11,7 @@ import { useTaskStore, TaskFormData } from "@/hooks/useTaskStore"
 import { Step1Basic } from "@/components/tugas/Step1Basic"
 import { Step2Config } from "@/components/tugas/Step2Config"
 import { Step3Summary } from "@/components/tugas/Step3Summary"
+import { useLanguage } from "@/context/LanguageContext"
 
 export default function TugasPage() {
   const {
@@ -28,15 +29,14 @@ export default function TugasPage() {
     addTask,
     resetForm
   } = useTaskStore()
+  const { t, tList } = useLanguage()
 
   useEffect(() => {
     void loadTasks()
   }, [loadTasks])
 
-  const indonesianMonths = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
-  ]
+  const months = tList("values.months")
+  const days = tList("values.days")
 
   const handlePrevMonth = () => {
     setCurrentMonthDate(prev => {
@@ -58,7 +58,7 @@ export default function TugasPage() {
     const today = new Date()
     setCurrentMonthDate(today)
     setSelectedDate(today)
-    toast.success("Kalender dialihkan ke hari ini!")
+    toast.success(t("tasks.todayRedirected"))
   }
 
   const renderTaskDetails = (task: Task) => {
@@ -87,7 +87,7 @@ export default function TugasPage() {
               
               <div className="grid grid-cols-2 gap-3 mb-2 pb-2 border-b border-amber-100/30 dark:border-slate-800/50">
                 <div>
-                  <span className="text-slate-400 dark:text-slate-500 font-medium block">Prioritas</span>
+                  <span className="text-slate-400 dark:text-slate-500 font-medium block">{t("tasks.priority")}</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1 mt-0.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${
                       task.priority.includes("Tinggi")
@@ -96,19 +96,19 @@ export default function TugasPage() {
                           ? "bg-slate-400 dark:bg-slate-500"
                           : "bg-amber-500"
                     }`}></span>
-                    {task.priority}
+                    {t(`values.priority.${task.priority}`)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 dark:text-slate-500 font-medium block">Penanggung Jawab</span>
+                  <span className="text-slate-400 dark:text-slate-500 font-medium block">{t("tasks.assignee")}</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300 mt-0.5 block">{task.assignee || "-"}</span>
                 </div>
               </div>
-              
+
               <div>
-                <span className="text-slate-400 dark:text-slate-500 font-medium block">Catatan Detail</span>
+                <span className="text-slate-400 dark:text-slate-500 font-medium block">{t("tasks.detailNotes")}</span>
                 <p className="mt-1 text-slate-600 dark:text-slate-400 leading-relaxed font-normal normal-case">
-                  {task.notes || "Tidak ada catatan."}
+                  {task.notes || t("tasks.noNotes")}
                 </p>
               </div>
             </div>
@@ -149,12 +149,12 @@ export default function TugasPage() {
         completed: data.completedDirectly,
       })
 
-      toast.success("Tugas berhasil ditambahkan!", {
-        description: `Tugas: "${data.title}" | Klien: ${data.relatedTo} untuk tanggal ${selectedDate.getDate()} ${indonesianMonths[selectedDate.getMonth()]}`,
+      toast.success(t("toast.taskAdded"), {
+        description: t("toast.taskAddedDesc", { title: data.title, company: data.relatedTo, date: `${selectedDate.getDate()} ${months[selectedDate.getMonth()]}` }),
       })
       resetForm()
     } catch {
-      toast.error("Tugas gagal disimpan")
+      toast.error(t("toast.taskSaveError"))
     }
   }
 
@@ -232,15 +232,15 @@ export default function TugasPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
           <div>
             <h2 className="font-headline-md text-[24px] font-semibold text-on-surface">
-              Jadwal Aktivitas
+              {t("tasks.title")}
             </h2>
             <p className="font-body-md text-sm text-on-surface-variant mt-1">
-              Kelola tugas dan interaksi klien Anda hari ini.
+              {t("tasks.subtitle")}
             </p>
           </div>
           <div className="flex gap-2 self-end items-center">
             <span className="font-semibold text-sm mr-2 text-on-surface dark:text-slate-200">
-              {indonesianMonths[currentMonthDate.getMonth()]} {currentMonthDate.getFullYear()}
+              {months[currentMonthDate.getMonth()]} {currentMonthDate.getFullYear()}
             </span>
             <button 
               onClick={handlePrevMonth}
@@ -248,11 +248,11 @@ export default function TugasPage() {
             >
               <span className="material-symbols-outlined text-[20px]">chevron_left</span>
             </button>
-            <button 
+            <button
               onClick={handleToday}
               className="px-4 py-2 rounded-lg bg-surface border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-label-md text-sm font-semibold cursor-pointer"
             >
-              Hari Ini
+              {t("tasks.today")}
             </button>
             <button 
               onClick={handleNextMonth}
@@ -267,13 +267,13 @@ export default function TugasPage() {
         <Card className="p-6 flex-1 flex flex-col">
           {/* Days Header */}
           <div className="grid grid-cols-7 gap-4 mb-4 border-b border-outline-variant pb-4">
-            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Sen</div>
-            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Sel</div>
-            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Rab</div>
-            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Kam</div>
-            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Jum</div>
-            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Sab</div>
-            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">Min</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">{days[0]}</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">{days[1]}</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">{days[2]}</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">{days[3]}</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">{days[4]}</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">{days[5]}</div>
+            <div className="text-center font-label-sm text-xs font-semibold text-on-surface-variant uppercase">{days[6]}</div>
           </div>
 
           {/* Calendar Grid */}
@@ -288,7 +288,7 @@ export default function TugasPage() {
                   key={idx}
                   onClick={() => {
                     setSelectedDate(day.date)
-                    toast.info(`Melihat tugas untuk ${day.dayNum} ${indonesianMonths[day.date.getMonth()]} ${day.date.getFullYear()}`)
+                    toast.info(t("tasks.viewingDate", { date: `${day.dayNum} ${months[day.date.getMonth()]} ${day.date.getFullYear()}` }))
                   }}
                   className={`p-2 rounded-lg border transition-all min-h-[80px] flex flex-col cursor-pointer select-none relative ${
                     isSelectedCell
@@ -328,7 +328,7 @@ export default function TugasPage() {
                     ))}
                     {tasksForDay.length > 2 && (
                       <div className="text-[8px] text-slate-400 dark:text-slate-500 font-bold mt-0.5 text-right">
-                        +{tasksForDay.length - 2} lagi
+                        {t("tasks.moreCount", { count: tasksForDay.length - 2 })}
                       </div>
                     )}
                   </div>
@@ -343,21 +343,21 @@ export default function TugasPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-outline-variant/30">
             <h3 className="font-headline-sm text-base font-semibold text-on-surface flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">add_task</span>
-              Tambah Tugas Baru (Tanggal: {selectedDate.getDate()} {indonesianMonths[selectedDate.getMonth()]})
+              {t("tasks.addTaskTitle", { date: `${selectedDate.getDate()} ${months[selectedDate.getMonth()]}` })}
             </h3>
-            
+
             {/* Step Indicators */}
             <div className="flex items-center gap-1.5 text-[10px] font-semibold text-on-surface-variant">
               <span className={cn("px-2 py-0.5 rounded-full transition-all duration-200", step >= 1 ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant")}>
-                1. Utama
+                {t("tasks.stepBasic")}
               </span>
               <span className="text-outline-variant">&rarr;</span>
               <span className={cn("px-2 py-0.5 rounded-full transition-all duration-200", step >= 2 ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant")}>
-                2. Detail
+                {t("tasks.stepDetail")}
               </span>
               <span className="text-outline-variant">&rarr;</span>
               <span className={cn("px-2 py-0.5 rounded-full transition-all duration-200", step >= 3 ? "bg-primary text-on-primary" : "bg-surface-container-high text-on-surface-variant")}>
-                3. Ringkasan
+                {t("tasks.stepSummary")}
               </span>
             </div>
           </div>
@@ -381,15 +381,15 @@ export default function TugasPage() {
             <div className="flex items-center justify-between mb-4 border-b border-outline-variant/60 pb-3 relative z-10">
               <div>
                 <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                  Tugas {selectedDate.getDate()} {indonesianMonths[selectedDate.getMonth()]}
+                  {t("tasks.tasksForDate", { date: `${selectedDate.getDate()} ${months[selectedDate.getMonth()]}` })}
                 </h3>
-                <p className="text-[10px] text-slate-500 font-medium">Jadwal pada tanggal terpilih</p>
+                <p className="text-[10px] text-slate-500 font-medium">{t("tasks.selectedDateSchedule")}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedDate(today)}
                 className="px-2.5 py-1 bg-primary text-white text-[10px] font-bold rounded-full cursor-pointer hover:bg-primary/95 transition-colors"
               >
-                Hari Ini
+                {t("tasks.today")}
               </button>
             </div>
 
@@ -397,8 +397,8 @@ export default function TugasPage() {
               {selectedDateTasks.length === 0 ? (
                 <div className="py-12 text-center flex flex-col items-center justify-center">
                   <span className="material-symbols-outlined text-slate-400/50 text-[36px] mb-2">event_busy</span>
-                  <p className="text-xs text-slate-500 font-semibold">Tidak ada tugas terdaftar</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Gunakan form kiri untuk menambahkan</p>
+                  <p className="text-xs text-slate-500 font-semibold">{t("tasks.noTasksForDate")}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{t("tasks.useFormLeft")}</p>
                 </div>
               ) : (
                 selectedDateTasks.map(task => (
@@ -435,12 +435,12 @@ export default function TugasPage() {
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">{task.company}</p>
                         <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60">
                           <div className="text-[10px] text-slate-400 font-semibold">
-                            <span>Waktu: {task.time}</span>
+                            <span>{t("tasks.timeLabel", { time: task.time })}</span>
                           </div>
                           {task.completed ? (
-                            <span className="text-[10px] text-emerald-600 font-bold">Selesai</span>
+                            <span className="text-[10px] text-emerald-600 font-bold">{t("tasks.completed")}</span>
                           ) : (
-                            <span className="text-[10px] text-amber-600 font-bold">Belum Selesai</span>
+                            <span className="text-[10px] text-amber-600 font-bold">{t("tasks.notCompleted")}</span>
                           )}
                         </div>
                       </div>
@@ -459,12 +459,12 @@ export default function TugasPage() {
                 <div className="flex items-center justify-between mb-4 border-b border-outline-variant/60 pb-3 relative z-10">
                   <div>
                     <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                      Tugas Terlewat
+                      {t("tasks.overdueTitle")}
                     </h3>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Perlu tindakan segera</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{t("tasks.overdueSubtitle")}</p>
                   </div>
                   <span className="px-2.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full shadow-xs shadow-red-500/10">
-                    {overdueTasks.length} Urgent
+                    {t("tasks.urgent", { count: overdueTasks.length })}
                   </span>
                 </div>
 
@@ -485,17 +485,17 @@ export default function TugasPage() {
                         
                         <div className="flex items-start gap-3 w-full">
                           <div onClick={(e) => e.stopPropagation()}>
-                            <Checkbox 
-                              checked={task.completed} 
+                            <Checkbox
+                              checked={task.completed}
                               onChange={() => {
                                 void toggleTask(task.id)
                                 if (!task.completed) {
-                                  toast.success("Tugas diselesaikan!", {
-                                    description: `Tugas "${task.title}" telah diselesaikan.`,
+                                  toast.success(t("toast.taskCompleted"), {
+                                    description: t("toast.taskCompletedDesc", { title: task.title }),
                                   })
                                 }
-                              }} 
-                              className="mt-1 accent-red-600 cursor-pointer" 
+                              }}
+                              className="mt-1 accent-red-600 cursor-pointer"
                             />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -524,21 +524,21 @@ export default function TugasPage() {
                                   ? "text-slate-400 dark:text-slate-600"
                                   : "text-slate-600 dark:text-slate-350"
                               }`}>
-                                <span>Jatuh Tempo: {task.time}</span>
+                                <span>{t("tasks.dueTime", { time: task.time })}</span>
                               </div>
-                              
+
                               {!task.completed && (
-                                <button 
+                                <button
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     void toggleTask(task.id)
-                                    toast.success("Tugas diselesaikan!", {
-                                      description: `Tugas "${task.title}" telah diselesaikan.`,
+                                    toast.success(t("toast.taskCompleted"), {
+                                      description: t("toast.taskCompletedDesc", { title: task.title }),
                                     })
                                   }}
                                   className="text-[10px] text-slate-400 hover:text-primary dark:text-slate-500 dark:hover:text-primary font-bold flex items-center transition-colors cursor-pointer"
                                 >
-                                  Tandai Selesai
+                                  {t("tasks.markDone")}
                                 </button>
                               )}
                             </div>
@@ -556,7 +556,7 @@ export default function TugasPage() {
             <Card className="p-4 flex-1 flex flex-col">
               <h3 className="font-label-md text-xs font-bold text-primary flex items-center gap-2 mb-3 uppercase tracking-wider">
                 <span className="material-symbols-outlined text-[16px]">today</span>
-                Hari Ini
+                {t("tasks.today")}
               </h3>
               <div className="space-y-2 flex-1 overflow-y-auto pr-1">
                 {todayTasks.map(task => (
@@ -603,7 +603,7 @@ export default function TugasPage() {
             <div className="bg-surface-container rounded-xl p-4 border border-outline-variant/50">
               <h3 className="font-label-md text-xs font-bold text-on-surface-variant flex items-center gap-2 mb-3 uppercase tracking-wider">
                 <span className="material-symbols-outlined text-[16px]">upcoming</span>
-                Akan Datang
+                {t("tasks.upcoming")}
               </h3>
               <div className="space-y-2">
                 {upcomingTasks.map(task => (

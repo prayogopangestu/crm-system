@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React, { useEffect, useMemo } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -12,23 +12,21 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/Avatar"
 import { useSettingsStore } from "@/hooks/useSettingsStore"
 import { toast } from "sonner"
+import { useLanguage } from "@/context/LanguageContext"
 
 type Tab = "profil" | "tim" | "pipeline" | "integrasi"
 
-const profileSchema = z.object({
-  firstName: z.string().min(1, "Nama depan wajib diisi"),
-  lastName: z.string().min(1, "Nama belakang wajib diisi"),
-  email: z.string().email("Format email tidak valid").min(1, "Email wajib diisi")
-})
+type ProfileInput = {
+  firstName: string
+  lastName: string
+  email: string
+}
 
-const inviteSchema = z.object({
-  inviteName: z.string().min(2, "Nama lengkap wajib diisi"),
-  inviteEmail: z.string().email("Format email tidak valid").min(1, "Email wajib diisi"),
-  inviteRole: z.enum(["Admin", "Staf Sales"])
-})
-
-type ProfileInput = z.infer<typeof profileSchema>
-type InviteInput = z.infer<typeof inviteSchema>
+type InviteInput = {
+  inviteName: string
+  inviteEmail: string
+  inviteRole: "Admin" | "Staf Sales"
+}
 
 export default function PengaturanPage() {
   const {
@@ -49,6 +47,27 @@ export default function PengaturanPage() {
     addStage,
     setWebhookEnabled
   } = useSettingsStore()
+  const { t } = useLanguage()
+
+  const profileSchema = useMemo(
+    () =>
+      z.object({
+        firstName: z.string().min(1, t("settings.profile.validation.firstNameRequired")),
+        lastName: z.string().min(1, t("settings.profile.validation.lastNameRequired")),
+        email: z.string().email(t("auth.validation.emailInvalid")).min(1, t("auth.validation.emailRequired")),
+      }),
+    [t],
+  )
+
+  const inviteSchema = useMemo(
+    () =>
+      z.object({
+        inviteName: z.string().min(2, t("settings.team.validation.nameMin")),
+        inviteEmail: z.string().email(t("auth.validation.emailInvalid")).min(1, t("auth.validation.emailRequired")),
+        inviteRole: z.enum(["Admin", "Staf Sales"]),
+      }),
+    [t],
+  )
 
   const { register: registerProfile, handleSubmit: handleSubmitProfile, reset: resetProfile, formState: { errors: profileErrors } } = useForm<ProfileInput>({
     resolver: zodResolver(profileSchema),
@@ -83,7 +102,7 @@ export default function PengaturanPage() {
 
   const handleCopyWebhook = () => {
     navigator.clipboard.writeText(webhookUrl)
-    toast.success("Webhook URL disalin ke clipboard!")
+    toast.success(t("toast.webhookCopied"))
   }
 
   const handleInviteUser = async (data: InviteInput) => {
@@ -93,24 +112,24 @@ export default function PengaturanPage() {
         email: data.inviteEmail,
         role: data.inviteRole,
       })
-      toast.success("Undangan anggota berhasil dibuat")
+      toast.success(t("toast.inviteCreated"))
       resetInvite()
     } catch {
-      toast.error("Undangan anggota gagal dibuat")
+      toast.error(t("toast.inviteError"))
     }
   }
 
   const handleUpdateProfile = async (data: ProfileInput) => {
     try {
       await updateProfile(data)
-      toast.success("Profil diperbarui!")
+      toast.success(t("toast.profileUpdated"))
     } catch {
-      toast.error("Profil gagal diperbarui")
+      toast.error(t("toast.profileError"))
     }
   }
 
   const handleAddStage = async () => {
-    const stageName = prompt("Masukkan nama tahapan penjualan baru:")
+    const stageName = prompt(t("settings.pipelineTab.promptStage"))
     if (!stageName) return
 
     try {
@@ -118,9 +137,9 @@ export default function PengaturanPage() {
         name: stageName,
         color: "bg-surface-variant",
       })
-      toast.success("Tahapan berhasil ditambahkan")
+      toast.success(t("toast.stageAdded"))
     } catch {
-      toast.error("Tahapan gagal ditambahkan")
+      toast.error(t("toast.stageError"))
     }
   }
 
@@ -129,10 +148,10 @@ export default function PengaturanPage() {
       {/* Page Header */}
       <div className="mb-stack-lg">
         <h2 className="font-headline-md text-[24px] font-semibold text-on-surface mb-2">
-          Pengaturan
+          {t("settings.title")}
         </h2>
         <p className="font-body-lg text-sm text-on-surface-variant">
-          Kelola konfigurasi sistem, tim, dan integrasi eksternal.
+          {t("settings.subtitle")}
         </p>
       </div>
 
@@ -145,10 +164,10 @@ export default function PengaturanPage() {
       {/* Settings Tabs */}
       <div className="flex border-b border-outline-variant mb-stack-lg overflow-x-auto hide-scrollbar">
         {[
-          { id: "profil", label: "Profil Saya" },
-          { id: "tim", label: "Manajemen Tim" },
-          { id: "pipeline", label: "Kustomisasi Pipeline" },
-          { id: "integrasi", label: "Integrasi Webhook" }
+          { id: "profil", label: t("settings.tabProfile") },
+          { id: "tim", label: t("settings.tabTeam") },
+          { id: "pipeline", label: t("settings.tabPipeline") },
+          { id: "integrasi", label: t("settings.tabIntegration") }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -169,20 +188,20 @@ export default function PengaturanPage() {
         {/* Tab 1: Profil Saya */}
         {activeTab === "profil" && (
           <Card className="col-span-12 p-6 max-w-2xl">
-            <h3 className="font-headline-md text-base font-bold text-on-surface mb-4">Profil Saya</h3>
+            <h3 className="font-headline-md text-base font-bold text-on-surface mb-4">{t("settings.profile.title")}</h3>
             <div className="flex items-center space-x-4 mb-6">
               <Avatar className="h-16 w-16">
                 <AvatarFallback className="text-xl">{profile?.initials || "?"}</AvatarFallback>
               </Avatar>
               <div>
-                <h4 className="font-bold text-base text-on-surface">{profile?.name || "Memuat profil..."}</h4>
+                <h4 className="font-bold text-base text-on-surface">{profile?.name || t("settings.profile.loading")}</h4>
                 <p className="text-xs text-on-surface-variant">{profile?.role || "-"}</p>
               </div>
             </div>
             <form onSubmit={handleSubmitProfile(handleUpdateProfile)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface-variant mb-1">Nama Depan</label>
+                  <label className="block text-xs font-semibold text-on-surface-variant mb-1">{t("settings.profile.firstName")}</label>
                   <Input
                     {...registerProfile("firstName")}
                     className={profileErrors.firstName ? "border-red-500" : ""}
@@ -192,7 +211,7 @@ export default function PengaturanPage() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface-variant mb-1">Nama Belakang</label>
+                  <label className="block text-xs font-semibold text-on-surface-variant mb-1">{t("settings.profile.lastName")}</label>
                   <Input
                     {...registerProfile("lastName")}
                     className={profileErrors.lastName ? "border-red-500" : ""}
@@ -203,7 +222,7 @@ export default function PengaturanPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-on-surface-variant mb-1">Alamat Email</label>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">{t("settings.profile.email")}</label>
                 <Input
                   type="email"
                   {...registerProfile("email")}
@@ -215,7 +234,7 @@ export default function PengaturanPage() {
               </div>
               <div className="flex justify-end pt-2">
                 <Button type="submit" variant="default" disabled={isLoading}>
-                  {isLoading ? "Menyimpan..." : "Simpan Perubahan"}
+                  {isLoading ? t("common.saving") : t("settings.profile.saveBtn")}
                 </Button>
               </div>
             </form>
@@ -227,8 +246,8 @@ export default function PengaturanPage() {
           <Card className="col-span-12 lg:col-span-8 overflow-hidden flex flex-col">
             <div className="p-6 border-b border-outline-variant flex justify-between items-center bg-surface/50">
               <div>
-                <h3 className="font-headline-md text-base font-bold text-on-surface">Anggota Tim</h3>
-                <p className="text-xs text-on-surface-variant mt-1">Kelola akses dan peran pengguna dalam sistem.</p>
+                <h3 className="font-headline-md text-base font-bold text-on-surface">{t("settings.team.title")}</h3>
+                <p className="text-xs text-on-surface-variant mt-1">{t("settings.team.subtitle")}</p>
               </div>
               <Button
                 onClick={() => setShowInviteModal(true)}
@@ -237,24 +256,24 @@ export default function PengaturanPage() {
                 className="flex items-center gap-2 font-semibold"
               >
                 <span className="material-symbols-outlined text-[18px]">person_add</span>
-                Undang Pengguna
+                {t("settings.team.invite")}
               </Button>
             </div>
             <div className="flex-1 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Pengguna</TableHead>
-                    <TableHead>Peran</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Aksi</TableHead>
+                    <TableHead>{t("settings.team.colUser")}</TableHead>
+                    <TableHead>{t("settings.team.colRole")}</TableHead>
+                    <TableHead>{t("settings.team.colStatus")}</TableHead>
+                    <TableHead className="text-right">{t("common.action")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading && teamMembers.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center py-8 text-on-surface-variant/70">
-                        Memuat anggota tim...
+                        {t("settings.team.loading")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -277,7 +296,7 @@ export default function PengaturanPage() {
                             ? "bg-secondary-container text-on-secondary-container"
                             : "bg-surface-container-highest text-on-surface border border-outline-variant"
                         }`}>
-                          {member.role}
+                          {t(`values.role.${member.role}`)}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -285,7 +304,7 @@ export default function PengaturanPage() {
                           <div className={`h-2 w-2 rounded-full mr-2 ${
                             member.status === "Aktif" ? "bg-primary" : "bg-outline-variant"
                           }`}></div>
-                          <span className="text-on-surface-variant">{member.status}</span>
+                          <span className="text-on-surface-variant">{t(`values.memberStatus.${member.status}`)}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -306,11 +325,11 @@ export default function PengaturanPage() {
           <Card className="col-span-12 lg:col-span-6 p-6">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="font-headline-sm text-base font-bold text-on-surface">Tahapan Penjualan</h3>
-                <p className="text-xs text-on-surface-variant mt-0.5">Edit susunan tahapan penjualan.</p>
+                <h3 className="font-headline-sm text-base font-bold text-on-surface">{t("settings.pipelineTab.title")}</h3>
+                <p className="text-xs text-on-surface-variant mt-0.5">{t("settings.pipelineTab.subtitle")}</p>
               </div>
               <Button onClick={handleAddStage} variant="outline" size="sm">
-                Tambah Tahapan
+                {t("settings.pipelineTab.addStage")}
               </Button>
             </div>
             <div className="space-y-2 mt-4">
@@ -340,15 +359,15 @@ export default function PengaturanPage() {
                 <span className="material-symbols-outlined">api</span>
               </div>
               <div>
-                <h3 className="font-headline-sm text-base font-bold text-on-surface">Integrasi Webhook</h3>
-                <p className="text-xs text-on-surface-variant mt-0.5">Notifikasi Real-time</p>
+                <h3 className="font-headline-sm text-base font-bold text-on-surface">{t("settings.integration.title")}</h3>
+                <p className="text-xs text-on-surface-variant mt-0.5">{t("settings.integration.subtitle")}</p>
               </div>
             </div>
             <div className="bg-surface border border-outline-variant rounded-lg p-4 mb-4 flex-1">
               <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center space-x-2">
                   <span className="material-symbols-outlined text-primary text-[20px]">send</span>
-                  <span className="font-label-md text-sm font-bold text-on-surface">Telegram Bot API</span>
+                  <span className="font-label-md text-sm font-bold text-on-surface">{t("settings.integration.telegramBot")}</span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer select-none">
                   <input
@@ -356,7 +375,7 @@ export default function PengaturanPage() {
                     checked={webhookEnabled}
                     onChange={() => {
                       setWebhookEnabled(!webhookEnabled).catch(() => {
-                        toast.error("Integrasi gagal diperbarui")
+                        toast.error(t("toast.integrationError"))
                       })
                     }}
                     className="sr-only peer"
@@ -365,11 +384,11 @@ export default function PengaturanPage() {
                 </label>
               </div>
               <p className="text-xs text-on-surface-variant mb-4 leading-relaxed">
-                Kirimkan notifikasi telegram secara instan setiap kali kesepakatan penjualan berubah ke tahap Won (Menang).
+                {t("settings.integration.description")}
               </p>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface-variant mb-1">Webhook URL</label>
+                  <label className="block text-xs font-semibold text-on-surface-variant mb-1">{t("settings.integration.webhookUrl")}</label>
                   <div className="flex items-center border border-outline-variant rounded-lg overflow-hidden focus-within:border-primary transition-colors bg-surface-container-lowest">
                     <input
                       className="w-full bg-transparent border-none text-xs text-on-surface py-2 px-3 focus:ring-0 outline-none opacity-70"
@@ -389,11 +408,11 @@ export default function PengaturanPage() {
               </div>
             </div>
             <Button
-              onClick={() => toast.info("Membuka pengaturan API Telegram...")}
+              onClick={() => toast.info(t("settings.integration.openingTelegram"))}
               className="w-full font-semibold"
               variant="secondary"
             >
-              Konfigurasi Telegram
+              {t("settings.integration.configureTelegram")}
             </Button>
           </Card>
         )}
@@ -413,16 +432,16 @@ export default function PengaturanPage() {
               <span className="material-symbols-outlined">close</span>
             </button>
             <h3 className="font-headline-sm text-lg font-bold text-on-surface mb-4">
-              Undang Anggota Tim
+              {t("settings.team.inviteTitle")}
             </h3>
             <form onSubmit={handleSubmitInvite(handleInviteUser)} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Nama Lengkap
+                  {t("settings.team.fullName")}
                 </label>
                 <Input
                   {...registerInvite("inviteName")}
-                  placeholder="Nama Lengkap Anggota"
+                  placeholder={t("settings.team.fullNamePlaceholder")}
                   className={inviteErrors.inviteName ? "border-red-500" : ""}
                 />
                 {inviteErrors.inviteName && (
@@ -431,7 +450,7 @@ export default function PengaturanPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Alamat Email
+                  {t("settings.team.email")}
                 </label>
                 <Input
                   type="email"
@@ -445,7 +464,7 @@ export default function PengaturanPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-                  Peran Akses (Role)
+                  {t("settings.team.roleAccess")}
                 </label>
                 <Controller
                   name="inviteRole"
@@ -456,11 +475,11 @@ export default function PengaturanPage() {
                       onValueChange={field.onChange}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Pilih Peran" />
+                        <SelectValue placeholder={t("settings.team.selectRole")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Staf Sales">Staf Sales</SelectItem>
-                        <SelectItem value="Admin">Admin</SelectItem>
+                        <SelectItem value="Staf Sales">{t("values.role.Staf Sales")}</SelectItem>
+                        <SelectItem value="Admin">{t("values.role.Admin")}</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
@@ -478,10 +497,10 @@ export default function PengaturanPage() {
                     resetInvite()
                   }}
                 >
-                  Batal
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" variant="default" disabled={isLoading}>
-                  {isLoading ? "Mengundang..." : "Undang"}
+                  {isLoading ? t("settings.team.inviting") : t("settings.team.inviteBtn")}
                 </Button>
               </div>
             </form>

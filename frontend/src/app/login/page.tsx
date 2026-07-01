@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useMemo } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
@@ -10,17 +10,26 @@ import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { useAuthStore } from "@/hooks/useAuthStore"
+import { useLanguage } from "@/context/LanguageContext"
 
-const loginSchema = z.object({
-  email: z.string().email("Format email tidak valid").min(1, "Email wajib diisi"),
-  password: z.string().min(6, "Kata sandi minimal harus 6 karakter")
-})
-
-type LoginInput = z.infer<typeof loginSchema>
+type LoginInput = {
+  email: string
+  password: string
+}
 
 export default function LoginPage() {
   const router = useRouter()
   const { isLoading, error, setError, login } = useAuthStore()
+  const { t } = useLanguage()
+
+  const loginSchema = useMemo(
+    () =>
+      z.object({
+        email: z.string().email(t("auth.validation.emailInvalid")).min(1, t("auth.validation.emailRequired")),
+        password: z.string().min(6, t("auth.validation.passwordMin")),
+      }),
+    [t],
+  )
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -38,7 +47,7 @@ export default function LoginPage() {
   }
 
   const handleSocialLogin = () => {
-    setError("Login sosial belum tersambung ke backend.")
+    setError(t("auth.login.socialNotConnected"))
   }
 
   return (
@@ -48,8 +57,8 @@ export default function LoginPage() {
         <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-on-primary font-bold shadow-md mb-3">
           <span className="material-symbols-outlined text-[28px]">domain</span>
         </div>
-        <h2 className="text-2xl font-bold text-on-surface tracking-tight">CRM Enterprise</h2>
-        <p className="text-xs text-on-surface-variant mt-1">Masuk untuk mengelola sales &amp; hubungan klien</p>
+        <h2 className="text-2xl font-bold text-on-surface tracking-tight">{t("common.appName")}</h2>
+        <p className="text-xs text-on-surface-variant mt-1">{t("auth.login.tagline")}</p>
       </div>
 
       {error && (
@@ -63,7 +72,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-on-surface-variant mb-1">
-            Alamat Email
+            {t("auth.login.emailLabel")}
           </label>
           <Input
             type="email"
@@ -78,9 +87,9 @@ export default function LoginPage() {
         <div>
           <div className="flex justify-between items-center mb-1">
             <label className="block text-xs font-semibold text-on-surface-variant">
-              Kata Sandi
+              {t("auth.login.passwordLabel")}
             </label>
-            <a href="#" className="text-[10px] text-primary hover:underline font-semibold">Lupa sandi?</a>
+            <a href="#" className="text-[10px] text-primary hover:underline font-semibold">{t("auth.login.forgotPassword")}</a>
           </div>
           <Input
             type="password"
@@ -99,7 +108,7 @@ export default function LoginPage() {
           className="w-full font-semibold py-2.5"
           disabled={isLoading}
         >
-          {isLoading ? "Sedang Masuk..." : "Masuk ke Akun"}
+          {isLoading ? t("auth.login.submitting") : t("auth.login.submit")}
         </Button>
       </form>
 
@@ -110,7 +119,7 @@ export default function LoginPage() {
         </div>
         <div className="relative flex justify-center text-xs uppercase">
           <span className="bg-surface-container-lowest px-2 text-on-surface-variant font-medium text-[10px]">
-            Atau masuk dengan
+            {t("auth.login.orWith")}
           </span>
         </div>
       </div>
@@ -161,9 +170,9 @@ export default function LoginPage() {
 
       {/* Redirect to Register */}
       <div className="mt-8 text-center text-xs text-on-surface-variant font-medium">
-        Belum memiliki akun?{" "}
+        {t("auth.login.noAccount")}{" "}
         <Link href="/daftar" className="text-primary font-bold hover:underline">
-          Daftar sekarang
+          {t("auth.login.registerNow")}
         </Link>
       </div>
     </Card>

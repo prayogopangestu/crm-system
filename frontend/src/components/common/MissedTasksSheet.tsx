@@ -11,16 +11,18 @@ import {
 import { Checkbox } from "@/components/ui/Checkbox"
 import { useTaskStore } from "@/hooks/useTaskStore"
 import { toast } from "sonner"
+import { useLanguage } from "@/context/LanguageContext"
 
-const indonesianMonths = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-]
+function buildMonths(locale: string) {
+  return locale === "id"
+    ? ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+    : ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+}
 
-function formatDateLabel(dateStr: string) {
+function formatDateLabel(dateStr: string, months: string[]) {
   const date = new Date(`${dateStr}T00:00:00`)
   if (Number.isNaN(date.getTime())) return dateStr
-  return `${date.getDate()} ${indonesianMonths[date.getMonth()]} ${date.getFullYear()}`
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`
 }
 
 interface MissedTasksSheetProps {
@@ -30,6 +32,8 @@ interface MissedTasksSheetProps {
 
 export function MissedTasksSheet({ open, onOpenChange }: MissedTasksSheetProps) {
   const { tasks, isLoading, loadTasks, toggleTask } = useTaskStore()
+  const { t, locale } = useLanguage()
+  const months = buildMonths(locale)
 
   useEffect(() => {
     if (!open) return
@@ -43,11 +47,11 @@ export function MissedTasksSheet({ open, onOpenChange }: MissedTasksSheetProps) 
 
   const handleComplete = (taskId: string, title: string) => {
     void toggleTask(taskId).then(() => {
-      toast.success("Tugas diselesaikan!", {
-        description: `Tugas "${title}" telah diselesaikan.`,
+      toast.success(t("toast.taskCompleted"), {
+        description: t("toast.taskCompletedDesc", { title }),
       })
     }).catch(() => {
-      toast.error("Gagal mengubah status tugas")
+      toast.error(t("toast.taskToggleError"))
     })
   }
 
@@ -62,12 +66,12 @@ export function MissedTasksSheet({ open, onOpenChange }: MissedTasksSheetProps) 
             <span className="material-symbols-outlined text-error text-[20px]">
               notifications_active
             </span>
-            Tugas Terlewat
+            {t("missedTasks.title")}
           </SheetTitle>
           <SheetDescription className="text-xs text-on-surface-variant">
             {missedTasks.length > 0
-              ? `${missedTasks.length} tugas membutuhkan tindakan segera.`
-              : "Tidak ada tugas yang terlewat."}
+              ? t("missedTasks.needAction", { count: missedTasks.length })
+              : t("missedTasks.none")}
           </SheetDescription>
         </SheetHeader>
 
@@ -78,7 +82,7 @@ export function MissedTasksSheet({ open, onOpenChange }: MissedTasksSheetProps) 
                 progress_activity
               </span>
               <p className="text-xs text-on-surface-variant font-medium">
-                Memuat tugas...
+                {t("missedTasks.loading")}
               </p>
             </div>
           ) : missedTasks.length === 0 ? (
@@ -87,10 +91,10 @@ export function MissedTasksSheet({ open, onOpenChange }: MissedTasksSheetProps) 
                 task_alt
               </span>
               <p className="text-sm text-on-surface font-semibold">
-                Semua tugas tertangani
+                {t("missedTasks.allDone")}
               </p>
               <p className="text-[11px] text-on-surface-variant mt-1">
-                Tidak ada tugas yang terlewat saat ini.
+                {t("missedTasks.noneNow")}
               </p>
             </div>
           ) : (
@@ -122,7 +126,7 @@ export function MissedTasksSheet({ open, onOpenChange }: MissedTasksSheetProps) 
                         <span className="material-symbols-outlined text-[13px]">
                           event
                         </span>
-                        {formatDateLabel(task.date)}
+                        {formatDateLabel(task.date, months)}
                       </span>
                       <span className="flex items-center gap-1">
                         <span className="material-symbols-outlined text-[13px]">
@@ -141,7 +145,7 @@ export function MissedTasksSheet({ open, onOpenChange }: MissedTasksSheetProps) 
         {missedTasks.length > 0 && (
           <div className="px-5 py-3 border-t border-outline-variant bg-surface-container-low">
             <p className="text-[10px] text-on-surface-variant font-medium text-center">
-              Centang tugas untuk menandainya selesai
+              {t("missedTasks.hint")}
             </p>
           </div>
         )}
