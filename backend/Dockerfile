@@ -16,6 +16,7 @@ RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /root/
 
 COPY --from=builder /app/backend/api .
+COPY --from=builder /app/backend/configs ./configs
 
 EXPOSE 8080
 
