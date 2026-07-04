@@ -1,8 +1,8 @@
 {
-  "buildCommand": "npm install && npm run build",
-  "outputDirectory": ".next",
   "framework": "nextjs",
   "installCommand": "npm install",
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
   "regions": ["sin1"],
   "headers": [
     {
@@ -21,12 +21,6 @@
           "value": "1; mode=block"
         }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://your-backend-url.com/:path*"
     }
   ]
 }
