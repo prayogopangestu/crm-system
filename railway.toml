@@ -1,0 +1,21 @@
+version = 1
+
+[frontend]
+builder = "dockerfile"
+dockerfilePath = "frontend/Dockerfile"
+envVars = ["NODE_ENV=production", "NEXT_PUBLIC_API_URL=${{ backend.RAILWAY_PRIVATE_DOMAIN }}/api"]
+
+[backend]  
+builder = "dockerfile"
+dockerfilePath = "backend/Dockerfile"
+envVars = [
+  "GO_ENV=production",
+  "DB_HOST=${{ postgres.RAILWAY_PRIVATE_DOMAIN }}",
+  "DB_PORT=5432", 
+  "DB_USER=${{ postgres.POSTGRES_USER }}",
+  "DB_PASSWORD=${{ postgres.POSTGRES_PASSWORD }}",
+  "DB_NAME=${{ postgres.POSTGRES_DB }}",
+  "REDIS_HOST=${{ redis.RAILWAY_PRIVATE_DOMAIN }}",
+  "REDIS_PORT=6379",
+  "REDIS_PASSWORD=${{ redis.REDIS_PASSWORD }}"
+]
