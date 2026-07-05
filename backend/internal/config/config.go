@@ -86,10 +86,11 @@ func override(cfg *Config) {
 	setString("APP_TIMEZONE", &cfg.App.Timezone)
 	setString("LOG_LEVEL", &cfg.App.LogLevel)
 	setString("HTTP_ADDR", &cfg.HTTP.Addr)
-	if port := os.Getenv("PORT"); port != "" {
-		if os.Getenv("HTTP_ADDR") == "" {
-			cfg.HTTP.Addr = ":" + port
-		}
+	if port := os.Getenv("PORT"); port != "" && os.Getenv("HTTP_ADDR") == "" {
+		cfg.HTTP.Addr = ":" + port
+	}
+	if cfg.HTTP.Addr == "" {
+		cfg.HTTP.Addr = ":8080"
 	}
 	setString("GRPC_ADDR", &cfg.GRPC.Addr)
 	setString("DATABASE_URL", &cfg.Database.URL)

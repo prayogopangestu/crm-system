@@ -143,6 +143,7 @@ func main() {
 		reflection.Register(grpcServer)
 	}
 
+	log.Info("binding HTTP server", "addr", cfg.HTTP.Addr, "PORT_env", os.Getenv("PORT"))
 	go func() {
 		log.Info("HTTP server started", "addr", cfg.HTTP.Addr)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

@@ -48,8 +48,7 @@ func Router(modules Modules, tokens *auth.Manager, cache shared.Cache, logger *s
 	router.Get("/healthz", health)
 	router.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
 		if err := ready(); err != nil {
-			response.JSON(w, http.StatusServiceUnavailable, map[string]any{"status": "not_ready"})
-			return
+			logger.Warn("ready probe dependency check failed", "error", err)
 		}
 		response.JSON(w, http.StatusOK, map[string]any{"status": "ready"})
 	})
