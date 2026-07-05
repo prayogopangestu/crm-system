@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -47,6 +48,13 @@ func main() {
 	}
 	log := logger.New(cfg.App.LogLevel)
 	slog.SetDefault(log)
+
+	log.Info("DEBUG db config",
+		"DATABASE_URL_set", os.Getenv("DATABASE_URL") != "",
+		"DATABASE_URL_len", len(os.Getenv("DATABASE_URL")),
+		"resolved_db_url", maskURL(cfg.Database.URL),
+		"config_path", configPath,
+	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -159,4 +167,19 @@ func mustLocation(value string) *time.Location {
 		panic(err)
 	}
 	return location
+}
+
+func maskURL(rawURL string) string {
+	u, err := neturl.Parse(rawURL)
+	if err != nil {
+		return "[unparseable]"
+	}
+	host := u.Host
+	if host == "" {
+		host = "[no-host]"
+	}
+	if u.User != nil {
+		u.User = neturl.User(u.User.Username())
+	}
+	return "scheme=" + u.Scheme + " host=" + host
 }
