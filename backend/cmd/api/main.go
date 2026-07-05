@@ -14,6 +14,7 @@ import (
 
 	userv1 "github.com/prayogopangestu/crm-system/backend/api/protobuf/gen"
 	"github.com/prayogopangestu/crm-system/backend/internal/config"
+	"github.com/prayogopangestu/crm-system/backend/internal/migrations"
 	"github.com/prayogopangestu/crm-system/backend/internal/modules/analytics"
 	"github.com/prayogopangestu/crm-system/backend/internal/modules/contact"
 	"github.com/prayogopangestu/crm-system/backend/internal/modules/deal"
@@ -64,6 +65,11 @@ func main() {
 		log.Error("postgres startup failed", "error", err)
 		os.Exit(1)
 	}
+	if err := migrations.Run(ctx, pool); err != nil {
+		log.Error("database migration failed", "error", err)
+		os.Exit(1)
+	}
+	log.Info("database migration completed")
 	location := mustLocation(cfg.App.Timezone)
 	store := postgresx.New(pool, location)
 	defer store.Close()
