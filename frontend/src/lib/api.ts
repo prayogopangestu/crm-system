@@ -1,5 +1,7 @@
+const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "")
+
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:8080"
+  configuredApiBaseUrl || (process.env.NODE_ENV === "development" ? "http://localhost:8080" : "")
 
 export const TOKEN_KEY = "crm_token"
 export const USER_KEY = "crm_user"
@@ -58,6 +60,13 @@ export function clearStoredAuth() {
 
 function buildUrl(path: string) {
   if (path.startsWith("http")) return path
+  if (!API_BASE_URL) {
+    throw new ApiError(
+      "NEXT_PUBLIC_API_URL belum dikonfigurasi. Isi dengan URL backend Railway.",
+      0,
+      "MISSING_API_URL"
+    )
+  }
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`
 }
 

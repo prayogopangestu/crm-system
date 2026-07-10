@@ -11,12 +11,25 @@ Set these in Vercel Dashboard > Project Settings > Environment Variables:
 
 ### Required
 ```
-NEXT_PUBLIC_API_URL=https://your-backend-url.com
+NEXT_PUBLIC_API_URL=https://your-railway-backend.up.railway.app
+```
+
+Use the public Railway backend domain, without a trailing slash. Example:
+
+```
+NEXT_PUBLIC_API_URL=https://crm-backend-production.up.railway.app
 ```
 
 ### Optional (for development)
 ```
 NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+If the browser shows a CORS error, add your Vercel frontend origin to the
+Railway backend service:
+
+```
+CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
 ```
 
 ## Deployment Steps
@@ -86,6 +99,7 @@ npm run start
 
 ### 1. API Connection Failed
 - Verify `NEXT_PUBLIC_API_URL` is correct
+- Redeploy Vercel after changing `NEXT_PUBLIC_API_URL`
 - Check backend CORS settings
 - Ensure backend is running and accessible
 
